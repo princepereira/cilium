@@ -104,6 +104,15 @@ github.com/Microsoft/go-winio/internal/fs
 github.com/Microsoft/go-winio/internal/socket
 github.com/Microsoft/go-winio/internal/stringbuffer
 github.com/Microsoft/go-winio/pkg/guid
+# github.com/Microsoft/hnslib v0.1.3
+## explicit; go 1.22.0
+github.com/Microsoft/hnslib
+github.com/Microsoft/hnslib/hcn
+github.com/Microsoft/hnslib/internal/hns
+github.com/Microsoft/hnslib/internal/interop
+github.com/Microsoft/hnslib/internal/regstate
+github.com/Microsoft/hnslib/internal/runhcs
+github.com/Microsoft/hnslib/internal/cni
 # github.com/ProtonMail/go-crypto v1.3.0
 ## explicit; go 1.22.0
 github.com/ProtonMail/go-crypto/bitcurves
@@ -1814,6 +1823,7 @@ golang.org/x/sys/cpu
 golang.org/x/sys/plan9
 golang.org/x/sys/unix
 golang.org/x/sys/windows
+golang.org/x/sys/windows/registry
 # golang.org/x/telemetry v0.0.0-20260409153401-be6f6cb8b1fa
 ## explicit; go 1.25.0
 golang.org/x/telemetry/counter
