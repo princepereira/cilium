@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Authors of Cilium
 
-//go:build linux
+//go:build windows
 
 package bpf
 
@@ -27,8 +27,7 @@ const (
 	MapUpdate Action = iota
 	// MapDelete describes a map.Delete event.
 	MapDelete
-	// MapDeleteAll describes a map.DeleteAll event which is aggregated into a single event
-	// to minimize memory and subscription buffer usage.
+	// MapDeleteAll describes a map.DeleteAll event which is aggregated into a single event.
 	MapDeleteAll
 )
 
@@ -69,8 +68,6 @@ func (e Event) GetKey() string {
 }
 
 // GetValue returns the string representation of a event value.
-// Nil values (such as with deletes) are returned as a canonical
-// string representation.
 func (e Event) GetValue() string {
 	if e.cacheEntry.Value == nil {
 		return "<nil>"
@@ -125,8 +122,7 @@ func (m *Map) initEventsBuffer(maxSize int, eventsTTL time.Duration) {
 	m.events = newEventsBuffer(m.Logger, m.name, maxSize, eventsTTL)
 }
 
-// eventsBuffer stores a buffer of events for auditing and debugging
-// purposes.
+// eventsBuffer stores a buffer of events for auditing and debugging purposes.
 type eventsBuffer struct {
 	logger   *slog.Logger
 	buffer   *container.RingBuffer[Event]
@@ -150,10 +146,7 @@ func (eb *eventsBuffer) dumpAndSubscribe(ctx context.Context, callback EventCall
 	}
 }
 
-// DumpAndSubscribe dumps existing buffer, if callback is not nil. Followed by creating a
-// subscription to the maps events buffer and returning the handle.
-// These actions are done together so as to prevent possible missed events between the handoff
-// of the callback and sub handle creation.
+// DumpAndSubscribe dumps existing buffer followed by creating a subscription.
 func (m *Map) DumpAndSubscribe(ctx context.Context, callback EventCallbackFunc, follow bool) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
