@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Authors of Cilium
 
+//go:build !windows
+
 package policymap
 
 import (
 	"errors"
 	"log/slog"
 	"math"
-	"strconv"
 	"unsafe"
 
 	ciliumebpf "github.com/cilium/ebpf"
@@ -84,28 +85,6 @@ type StatsKey struct {
 	TrafficDirection uint8  `align:"egress"`
 	Nexthdr          uint8  `align:"protocol"`
 	DestPortNetwork  uint16 `align:"dport"` // In network byte-order
-}
-
-type StatsValue struct {
-	Packets uint64 `align:"packets"`
-	Bytes   uint64 `align:"bytes"`
-}
-
-func (v *StatsValue) String() string {
-	bb := make([]byte, 0, 20)
-
-	if v.Packets == StatNotAvailable {
-		bb = append(bb, '-')
-	} else {
-		bb = strconv.AppendUint(bb, v.Packets, 10)
-	}
-	bb = append(bb, ' ')
-	if v.Bytes == StatNotAvailable {
-		bb = append(bb, '-')
-	} else {
-		bb = strconv.AppendUint(bb, v.Bytes, 10)
-	}
-	return string(bb)
 }
 
 // StatsMap is a per-CPU map, so the value is a slice
