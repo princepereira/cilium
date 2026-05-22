@@ -42,8 +42,19 @@ On Windows, the following eBPF map operations are handled via cncshim:
 
 ## Running
 
-Ensure cncshim is running on the Windows node before starting the agent:
+Ensure [cncshim](https://github.com/princepereira/cncshim/releases/tag/v0.1.0) is running on the Windows node before starting the agent:
 
 ```powershell
+# Start cncshim first (required)
+.\cncshim.exe
+
+# In another terminal, start cilium-agent
 .\cilium-agent.exe
 ```
+
+On startup the agent will:
+1. Initialize the CNCShim client (connects to the local cncshim gRPC server)
+2. Log `CNC API client initialized` with shim/API versions
+3. Wait for shutdown signal (Ctrl+C or SIGTERM)
+
+To stop the agent gracefully, press `Ctrl+C`.

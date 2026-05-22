@@ -8,24 +8,60 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/cilium/hive"
 	"github.com/cilium/hive/cell"
 	"github.com/spf13/cobra"
+
+	winDatapath "github.com/cilium/cilium/pkg/datapath/win"
 )
 
 var (
-	Agent              = cell.Module("agent", "Cilium Agent")
-	Infrastructure     = cell.Module("infra", "Infrastructure")
-	ControlPlane       = cell.Module("controlplane", "Control Plane")
-	hostIPSyncCell     = cell.Module("hostip-sync", "Syncs local host entries")
+	Agent = cell.Module("agent", "Cilium Agent (Windows)",
+		// CNCShim client — connects to the Windows datapath shim
+		winDatapath.Cell,
+	)
+
+	Infrastructure      = cell.Module("infra", "Infrastructure")
+	ControlPlane        = cell.Module("controlplane", "Control Plane")
+	hostIPSyncCell      = cell.Module("hostip-sync", "Syncs local host entries")
 	endpointRestoreCell = cell.Module("endpoint-restore", "Endpoint restoration")
 )
 
 type endpointRestorer struct{}
 
-func NewAgentCmd(func() *hive.Hive) *cobra.Command { return &cobra.Command{Use: "cilium-agent"} }
+// NewAgentCmd creates the cilium-agent cobra command for Windows.
+func NewAgentCmd(newHive func() *hive.Hive) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "cilium-agent",
+		Short: "Cilium Agent for Windows nodes (powered by cncshim)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			h := newHive()
+			if err := h.Start(slog.Default(), cmd.Context()); err != nil {
+				return fmt.Errorf("failed to start hive: %w", err)
+			}
+
+			slog.Info("Cilium agent started on Windows")
+
+			// Wait for shutdown signal
+			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
+			defer stop()
+			<-ctx.Done()
+
+			slog.Info("Shutting down cilium agent")
+			if err := h.Stop(slog.Default(), context.Background()); err != nil {
+				slog.Error("Error during shutdown", "error", err)
+				return err
+			}
+			return nil
+		},
+	}
+	return cmd
+}
 
 // Execute runs the provided cobra command.
 func Execute(cmd *cobra.Command) {
@@ -36,5 +72,5 @@ func Execute(cmd *cobra.Command) {
 }
 
 func (*endpointRestorer) WaitForEndpointRestoreWithoutRegeneration(context.Context) error { return nil }
-func (*endpointRestorer) WaitForEndpointRestore(context.Context) error                     { return nil }
+func (*endpointRestorer) WaitForEndpointRestore(context.Context) error                    { return nil }
 func (*endpointRestorer) WaitForInitialPolicy(context.Context) error                      { return nil }
