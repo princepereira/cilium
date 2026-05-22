@@ -21,7 +21,7 @@ import (
 )
 
 var (
-	Agent = cell.Module("agent", "Cilium Agent (Windows)",
+	Agent = cell.Module("agent", "Cilium Agent Windows",
 		// CNCShim client — connects to the Windows datapath shim
 		winDatapath.Cell,
 	)
