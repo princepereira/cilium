@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/netip"
+	"strings"
 	"time"
 
 	"github.com/cilium/hive/cell"
@@ -189,10 +190,16 @@ func (w *K8sWatcher) onServiceUpsert(svc *corev1.Service) {
 
 		serviceID := servicePortID(svc, port)
 		if err := api.CreateLoadBalancerService(serviceID, lbInfo); err != nil {
-			w.logger.Error("Failed to create LB service",
-				"service", svc.Namespace+"/"+svc.Name,
-				"port", port.Port,
-				"error", err)
+			if isAlreadyExistsErr(err) {
+				w.logger.Info("LB service already exists, skipping",
+					"service", svc.Namespace+"/"+svc.Name,
+					"port", port.Port)
+			} else {
+				w.logger.Error("Failed to create LB service",
+					"service", svc.Namespace+"/"+svc.Name,
+					"port", port.Port,
+					"error", err)
+			}
 		} else {
 			w.logger.Info("LB service created",
 				"service", svc.Namespace+"/"+svc.Name,
@@ -321,9 +328,15 @@ func (w *K8sWatcher) onEndpointSliceUpsert(eps *discoveryv1.EndpointSlice) {
 
 	if len(backends) > 0 {
 		if err := api.CreateLoadBalancerBackends(backends); err != nil {
-			w.logger.Error("Failed to create LB backends",
-				"endpointslice", eps.Namespace+"/"+eps.Name,
-				"error", err)
+			if isAlreadyExistsErr(err) {
+				w.logger.Info("LB backends already exist, skipping",
+					"endpointslice", eps.Namespace+"/"+eps.Name,
+					"count", len(backends))
+			} else {
+				w.logger.Error("Failed to create LB backends",
+					"endpointslice", eps.Namespace+"/"+eps.Name,
+					"error", err)
+			}
 		} else {
 			w.logger.Info("LB backends updated",
 				"endpointslice", eps.Namespace+"/"+eps.Name,
@@ -360,4 +373,9 @@ func protocolToUint8(p corev1.Protocol) uint8 {
 	default:
 		return 6
 	}
+}
+
+// isAlreadyExistsErr checks if the error is an "already exists" HRESULT (0x800700B7).
+func isAlreadyExistsErr(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "0x800700B7")
 }

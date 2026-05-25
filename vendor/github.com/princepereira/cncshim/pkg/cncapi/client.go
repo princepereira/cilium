@@ -41,14 +41,120 @@ type Client struct {
 var _ CNCApi = (*Client)(nil)
 
 // New creates a new Client and calls CncInitialize.
+// The caller must be running with Administrator (elevated) privileges and the
+// CNC kernel components (eBPF runtime, bpf_sock.sys) must be installed.
 func New() (*Client, error) {
+	if err := checkElevated(); err != nil {
+		return nil, fmt.Errorf("cncapi: %w", err)
+	}
 	c := &Client{}
 	r, _, _ := proc("CncInitialize").Call()
 	if err := CheckHR(HResult(int32(r)), "CncInitialize"); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w\n%s", err, diagnoseInitFailure())
 	}
 	c.initialized = true
 	return c, nil
+}
+
+// checkElevated verifies the current process is running with Administrator privileges.
+func checkElevated() error {
+	var token windows.Token
+	process := windows.CurrentProcess()
+	if err := windows.OpenProcessToken(process, windows.TOKEN_QUERY, &token); err != nil {
+		return fmt.Errorf("failed to open process token: %w", err)
+	}
+	defer token.Close()
+
+	if !token.IsElevated() {
+		return fmt.Errorf("CncInitialize requires elevated (Administrator) privileges. " +
+			"Please run the process from an Administrator command prompt")
+	}
+	return nil
+}
+
+// diagnoseInitFailure checks common prerequisites for CncInitialize and returns
+// a diagnostic message describing what may be missing.
+func diagnoseInitFailure() string {
+	var issues []string
+
+	// Check if wcnagent is already loaded by HNS (most common cause on K8s nodes)
+	if isWcnAgentLoaded() {
+		return "Hint: wcnagent.dll is already loaded by HNS (CiliumOnWindows is enabled). " +
+			"CncInitialize can only be called by one process at a time. " +
+			"Disable wcnagent first:\n" +
+			"  Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\hns\\State' -Name CiliumOnWindows -Value 0\n" +
+			"  Restart-Service hns -Force"
+	}
+
+	// Check ebpfcore service
+	if !isServiceRunning("ebpfcore") {
+		issues = append(issues, "- 'ebpfcore' service is not running (eBPF for Windows runtime required)")
+	}
+	// Check netebpfext service
+	if !isServiceRunning("netebpfext") {
+		issues = append(issues, "- 'netebpfext' service is not running (eBPF network extension required)")
+	}
+	// Check HNS service
+	if !isServiceRunning("hns") {
+		issues = append(issues, "- 'hns' (Host Network Service) is not running")
+	}
+
+	if len(issues) == 0 {
+		return "Hint: Ensure the CNC BPF programs (bpf_sock.sys) are loaded into the eBPF framework " +
+			"and ebpfapi.dll is present in System32."
+	}
+
+	msg := "Hint: CncInitialize failed. The following prerequisites are not met:\n"
+	for _, issue := range issues {
+		msg += issue + "\n"
+	}
+	msg += "Install eBPF for Windows and load the CNC BPF programs before calling CncInitialize."
+	return msg
+}
+
+// isWcnAgentLoaded checks if wcnagent.dll is loaded by any process (indicating HNS owns CNC).
+func isWcnAgentLoaded() bool {
+	// Query registry to check if CiliumOnWindows is enabled
+	keyPath, _ := windows.UTF16PtrFromString(`SYSTEM\CurrentControlSet\Services\hns\State`)
+	var key windows.Handle
+	if err := windows.RegOpenKeyEx(windows.HKEY_LOCAL_MACHINE, keyPath,
+		0, windows.KEY_READ, &key); err != nil {
+		return false
+	}
+	defer windows.RegCloseKey(key)
+
+	valName, _ := windows.UTF16PtrFromString("CiliumOnWindows")
+	var valType uint32
+	var buf [4]byte
+	bufLen := uint32(len(buf))
+	if err := windows.RegQueryValueEx(key, valName, nil, &valType, &buf[0], &bufLen); err != nil {
+		return false
+	}
+	// DWORD value: check if non-zero
+	dword := uint32(buf[0]) | uint32(buf[1])<<8 | uint32(buf[2])<<16 | uint32(buf[3])<<24
+	return dword != 0
+}
+
+// isServiceRunning queries the Windows Service Control Manager to check if a service is running.
+func isServiceRunning(name string) bool {
+	m, err := windows.OpenSCManager(nil, nil, windows.SC_MANAGER_CONNECT)
+	if err != nil {
+		return false
+	}
+	defer windows.CloseServiceHandle(m)
+
+	svcName, _ := windows.UTF16PtrFromString(name)
+	s, err := windows.OpenService(m, svcName, windows.SERVICE_QUERY_STATUS)
+	if err != nil {
+		return false
+	}
+	defer windows.CloseServiceHandle(s)
+
+	var status windows.SERVICE_STATUS
+	if err := windows.QueryServiceStatus(s, &status); err != nil {
+		return false
+	}
+	return status.CurrentState == windows.SERVICE_RUNNING
 }
 
 // Close calls CncUninitialize.

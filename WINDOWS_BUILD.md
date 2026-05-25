@@ -69,6 +69,26 @@ go build -mod=vendor -o cilium-agent.exe ./daemon/
 GOOS=linux GOARCH=amd64 go build -mod=vendor -o cilium-agent ./daemon/
 ```
 
+## Updating cncshim Version
+
+When upgrading cncshim to a newer release (e.g., v0.1.0 → v0.1.1):
+
+1. Update the version in `go.mod`:
+   ```bash
+   go get github.com/princepereira/cncshim@v0.1.1
+   ```
+
+2. Download and sync:
+   ```bash
+   go mod tidy
+   go mod vendor
+   ```
+
+3. Rebuild:
+   ```bash
+   go build -mod=vendor -o cilium-agent.exe ./daemon/
+   ```
+
 ## Architecture
 
 On Windows, the following eBPF map operations are handled via cncshim:
