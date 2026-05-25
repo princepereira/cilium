@@ -6,9 +6,10 @@
 package win
 
 import (
-	"fmt"
+	"context"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/cilium/hive/cell"
 
@@ -22,10 +23,13 @@ var Cell = cell.Module(
 )
 
 // CNCClient wraps the cncshim CNCApi client and manages its lifecycle.
+// It retries connecting to cncshim in the background if the initial attempt fails.
 type CNCClient struct {
-	mu     sync.Mutex
-	api    cncapi.CNCApi
-	logger *slog.Logger
+	mu       sync.Mutex
+	api      cncapi.CNCApi
+	logger   *slog.Logger
+	ready    chan struct{}
+	cancelFn context.CancelFunc
 }
 
 type cncClientParams struct {
@@ -38,6 +42,7 @@ type cncClientParams struct {
 func newCNCClient(p cncClientParams) *CNCClient {
 	c := &CNCClient{
 		logger: p.Log,
+		ready:  make(chan struct{}),
 	}
 	p.Lifecycle.Append(c)
 	return c
@@ -45,13 +50,22 @@ func newCNCClient(p cncClientParams) *CNCClient {
 
 func (c *CNCClient) Start(cell.HookContext) error {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 
 	client, err := cncapi.New()
 	if err != nil {
-		return fmt.Errorf("failed to initialize CNC API client: %w", err)
+		c.mu.Unlock()
+		c.logger.Warn("CNC API not available, will retry in background",
+			"error", err)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		c.cancelFn = cancel
+		go c.retryConnect(ctx)
+		return nil
 	}
+
 	c.api = client
+	c.mu.Unlock()
+	close(c.ready)
 	c.logger.Info("CNC API client initialized",
 		"shimVersion", cncapi.GetVersion(),
 		"cncApiVersion", cncapi.GetCNCApiVersion(),
@@ -59,7 +73,38 @@ func (c *CNCClient) Start(cell.HookContext) error {
 	return nil
 }
 
+func (c *CNCClient) retryConnect(ctx context.Context) {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			client, err := cncapi.New()
+			if err != nil {
+				c.logger.Warn("CNC API retry failed", "error", err)
+				continue
+			}
+			c.mu.Lock()
+			c.api = client
+			c.mu.Unlock()
+			close(c.ready)
+			c.logger.Info("CNC API client initialized (retry succeeded)",
+				"shimVersion", cncapi.GetVersion(),
+				"cncApiVersion", cncapi.GetCNCApiVersion(),
+			)
+			return
+		}
+	}
+}
+
 func (c *CNCClient) Stop(cell.HookContext) error {
+	if c.cancelFn != nil {
+		c.cancelFn()
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -72,9 +117,14 @@ func (c *CNCClient) Stop(cell.HookContext) error {
 	return nil
 }
 
-// API returns the underlying CNCApi interface. Must only be called after Start.
+// API returns the underlying CNCApi interface. Returns nil if not yet connected.
 func (c *CNCClient) API() cncapi.CNCApi {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.api
+}
+
+// Ready returns a channel that is closed when the CNC client is connected.
+func (c *CNCClient) Ready() <-chan struct{} {
+	return c.ready
 }

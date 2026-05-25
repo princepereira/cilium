@@ -6,6 +6,48 @@ The cilium-agent can be compiled for Windows nodes. On Windows, Linux eBPF map o
 
 - Go 1.22+
 - [cncshim](https://github.com/princepereira/cncshim/releases/tag/v0.1.0) running on the target Windows node
+- Access to a Kubernetes cluster (kubeconfig or in-cluster ServiceAccount)
+
+## RBAC Setup
+
+The cilium-agent needs cluster-wide read access to watch Services and EndpointSlices. Apply the RBAC manifest from a machine with cluster-admin access:
+
+```bash
+kubectl apply -f install/windows/rbac.yaml
+```
+
+This creates a `cilium-agent-win` ServiceAccount, ClusterRole, and ClusterRoleBinding in `kube-system`.
+
+**If running as a pod**, use `serviceAccountName: cilium-agent-win` in namespace `kube-system`.
+
+**If running outside a pod** (e.g., directly on a Windows node with kubeconfig), bind the ClusterRole to your ServiceAccount:
+
+```bash
+# Replace <namespace> and <service-account> with your actual values
+kubectl create clusterrolebinding cilium-agent-win-binding \
+  --clusterrole=cilium-agent-win \
+  --serviceaccount=<namespace>:<service-account>
+```
+
+For example, if the agent uses `demo:default`:
+
+```bash
+kubectl create clusterrolebinding cilium-agent-win-binding \
+  --clusterrole=cilium-agent-win \
+  --serviceaccount=demo:default
+```
+
+## Kubeconfig
+
+The agent looks for Kubernetes API access in this order:
+
+1. **In-cluster config** — auto-detected when running as a pod with a mounted ServiceAccount token
+2. **KUBECONFIG env var** — set explicitly via `$env:KUBECONFIG = "C:\path\to\config"`
+3. **Default path** — `%USERPROFILE%\.kube\config`
+
+Common kubeconfig locations on Windows nodes:
+- `C:\Users\<username>\.kube\config`
+- `C:\k\config` (AKS / common K8s installers)
 
 ## Build Instructions
 

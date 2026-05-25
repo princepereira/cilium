@@ -24,6 +24,9 @@ var (
 	Agent = cell.Module("agent", "Cilium Agent Windows",
 		// CNCShim client — connects to the Windows datapath shim
 		winDatapath.Cell,
+
+		// K8s watcher — watches Services/EndpointSlices and programs cncshim
+		winDatapath.K8sWatcherCell,
 	)
 
 	Infrastructure      = cell.Module("infra", "Infrastructure")
