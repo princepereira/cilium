@@ -6,6 +6,7 @@ package cncapi
 
 import (
 	"fmt"
+	"log/slog"
 	"net/netip"
 	"runtime"
 	"sync"
@@ -47,12 +48,50 @@ func New() (*Client, error) {
 	if err := checkElevated(); err != nil {
 		return nil, fmt.Errorf("cncapi: %w", err)
 	}
+
+	// Verify the DLL can be loaded before calling any proc.
+	if err := getDLL().Load(); err != nil {
+		return nil, fmt.Errorf("cncapi: failed to load cncapi.dll: %w\n%s",
+			err, "Hint: Ensure cncapi.dll is in System32 or the application directory.")
+	}
+
+	// Pre-flight: check that ebpfapi.dll is loadable. CncInitialize will crash
+	// (access violation) if this DLL is missing rather than returning an error.
+	ebpfDLL := windows.NewLazyDLL("ebpfapi.dll")
+	if err := ebpfDLL.Load(); err != nil {
+		return nil, fmt.Errorf("cncapi: failed to load ebpfapi.dll (required by CncInitialize): %w\n%s",
+			err, "Hint: Install eBPF for Windows (ebpf-for-windows MSI) and ensure ebpfapi.dll is in System32.\n"+
+				"Also ensure test signing is enabled: bcdedit /set testsigning on (reboot required).")
+	}
+
+	// Pre-flight: check required services are running to avoid crash inside CncInitialize.
+	if !isServiceRunning("ebpfcore") {
+		return nil, fmt.Errorf("cncapi: 'ebpfcore' service is not running.\n" +
+			"Hint: Install eBPF for Windows and start the service: Start-Service ebpfcore\n" +
+			"If the service fails to start, enable test signing: bcdedit /set testsigning on (reboot required).")
+	}
+	if !isServiceRunning("netebpfext") {
+		return nil, fmt.Errorf("cncapi: 'netebpfext' service is not running.\n" +
+			"Hint: Start the service: Start-Service netebpfext\n" +
+			"If the service fails to start, enable test signing: bcdedit /set testsigning on (reboot required).")
+	}
+	if !isServiceRunning("hns") {
+		return nil, fmt.Errorf("cncapi: 'hns' (Host Network Service) is not running.\n" +
+			"Hint: Start the service: Start-Service hns")
+	}
+
 	c := &Client{}
-	r, _, _ := proc("CncInitialize").Call()
+	p := proc("CncInitialize")
+	if err := p.Find(); err != nil {
+		return nil, fmt.Errorf("cncapi: CncInitialize not found in cncapi.dll: %w", err)
+	}
+	r, _, _ := p.Call()
 	if err := CheckHR(HResult(int32(r)), "CncInitialize"); err != nil {
+		logger.Error("CncInitialize failed", slog.String("error", err.Error()))
 		return nil, fmt.Errorf("%w\n%s", err, diagnoseInitFailure())
 	}
 	c.initialized = true
+	logger.Info("CncInitialize succeeded")
 	return c, nil
 }
 
@@ -164,8 +203,10 @@ func (c *Client) Close() error {
 	if !c.initialized {
 		return nil
 	}
+	logger.Debug("CncUninitialize", slog.String("op", "Close"))
 	proc("CncUninitialize").Call()
 	c.initialized = false
+	logger.Info("CncUninitialize succeeded")
 	return nil
 }
 
@@ -182,9 +223,11 @@ func (c *Client) GetNodeConfiguration() (*NodeConfigInfo, error) {
 	if err := c.checkInit(); err != nil {
 		return nil, err
 	}
+	logger.Debug("CncGetNodeConfiguration")
 	var ptr uintptr
 	r, _, _ := proc("CncGetNodeConfiguration").Call(uintptr(unsafe.Pointer(&ptr)))
 	if err := CheckHR(HResult(int32(r)), "CncGetNodeConfiguration"); err != nil {
+		logger.Error("CncGetNodeConfiguration failed", slog.String("error", err.Error()))
 		return nil, err
 	}
 	defer proc("CncFreeNodeConfigurationInfo").Call(ptr)

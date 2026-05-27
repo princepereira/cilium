@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/netip"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cilium/hive/cell"
@@ -40,6 +41,13 @@ type K8sWatcher struct {
 	k8s      kubernetes.Interface
 	logger   *slog.Logger
 	cancelFn context.CancelFunc
+
+	// mu protects the maps below
+	mu sync.Mutex
+	// svcBackends tracks current backends per endpointslice name (ns/name)
+	svcBackends map[string][]cncapi.BackendInfo
+	// createdServices tracks services already created in CNC (by serviceID)
+	createdServices map[uint16]bool
 }
 
 type k8sWatcherParams struct {
@@ -52,8 +60,10 @@ type k8sWatcherParams struct {
 
 func startK8sWatcher(p k8sWatcherParams) {
 	w := &K8sWatcher{
-		client: p.Client,
-		logger: p.Log,
+		client:          p.Client,
+		logger:          p.Log,
+		svcBackends:     make(map[string][]cncapi.BackendInfo),
+		createdServices: make(map[uint16]bool),
 	}
 	p.Lifecycle.Append(w)
 }
@@ -189,11 +199,28 @@ func (w *K8sWatcher) onServiceUpsert(svc *corev1.Service) {
 		}
 
 		serviceID := servicePortID(svc, port)
+
+		// Skip if already created — CNC re-creates on duplicate call, wiping backends
+		w.mu.Lock()
+		alreadyCreated := w.createdServices[serviceID]
+		w.mu.Unlock()
+		if alreadyCreated {
+			continue
+		}
+
+		w.logger.Info("DEBUG CreateLoadBalancerService",
+			"service", svc.Namespace+"/"+svc.Name,
+			"serviceID", serviceID,
+			"serviceType", svcType,
+			"frontendIP", clusterIP.String(),
+			"frontendPort", port.Port,
+			"frontendProto", protocolToUint8(port.Protocol),
+		)
 		if err := api.CreateLoadBalancerService(serviceID, lbInfo); err != nil {
 			if isAlreadyExistsErr(err) {
-				w.logger.Info("LB service already exists, skipping",
-					"service", svc.Namespace+"/"+svc.Name,
-					"port", port.Port)
+				w.mu.Lock()
+				w.createdServices[serviceID] = true
+				w.mu.Unlock()
 			} else {
 				w.logger.Error("Failed to create LB service",
 					"service", svc.Namespace+"/"+svc.Name,
@@ -201,6 +228,9 @@ func (w *K8sWatcher) onServiceUpsert(svc *corev1.Service) {
 					"error", err)
 			}
 		} else {
+			w.mu.Lock()
+			w.createdServices[serviceID] = true
+			w.mu.Unlock()
 			w.logger.Info("LB service created",
 				"service", svc.Namespace+"/"+svc.Name,
 				"clusterIP", svc.Spec.ClusterIP,
@@ -237,6 +267,9 @@ func (w *K8sWatcher) onServiceDelete(svc *corev1.Service) {
 				"service", svc.Namespace+"/"+svc.Name,
 				"error", err)
 		} else {
+			w.mu.Lock()
+			delete(w.createdServices, serviceID)
+			w.mu.Unlock()
 			w.logger.Info("LB service deleted",
 				"service", svc.Namespace+"/"+svc.Name)
 		}
@@ -300,9 +333,14 @@ func (w *K8sWatcher) onEndpointSliceUpsert(eps *discoveryv1.EndpointSlice) {
 		return
 	}
 
-	var backends []cncapi.BackendInfo
-	var backendID uint32
+	epsKey := eps.Namespace + "/" + eps.Name
 
+	// Build desired backends from the EndpointSlice
+	type ipPort struct {
+		ip   netip.Addr
+		port uint16
+	}
+	desiredSet := make(map[ipPort]struct{})
 	for _, ep := range eps.Endpoints {
 		if ep.Conditions.Ready != nil && !*ep.Conditions.Ready {
 			continue
@@ -316,50 +354,242 @@ func (w *K8sWatcher) onEndpointSliceUpsert(eps *discoveryv1.EndpointSlice) {
 				if port.Port == nil {
 					continue
 				}
-				backendID++
-				backends = append(backends, cncapi.BackendInfo{
-					BackendID: backendID,
-					IPAddress: ip,
-					Port:      uint16(*port.Port),
-				})
+				desiredSet[ipPort{ip: ip, port: uint16(*port.Port)}] = struct{}{}
 			}
 		}
 	}
 
-	if len(backends) > 0 {
-		if err := api.CreateLoadBalancerBackends(backends); err != nil {
-			if isAlreadyExistsErr(err) {
-				w.logger.Info("LB backends already exist, skipping",
-					"endpointslice", eps.Namespace+"/"+eps.Name,
-					"count", len(backends))
-			} else {
+	// Get old backends for this endpointslice
+	w.mu.Lock()
+	oldBackends := w.svcBackends[epsKey]
+	w.mu.Unlock()
+
+	// Build set of old IP:ports
+	oldSet := make(map[ipPort]cncapi.BackendInfo, len(oldBackends))
+	for _, b := range oldBackends {
+		oldSet[ipPort{ip: b.IPAddress, port: b.Port}] = b
+	}
+
+	// Compute diff: added and removed
+	var added []ipPort
+	for ep := range desiredSet {
+		if _, exists := oldSet[ep]; !exists {
+			added = append(added, ep)
+		}
+	}
+	var removed []cncapi.BackendInfo
+	for ep, b := range oldSet {
+		if _, exists := desiredSet[ep]; !exists {
+			removed = append(removed, b)
+		}
+	}
+
+	// No change — skip
+	if len(added) == 0 && len(removed) == 0 {
+		return
+	}
+
+	// Determine the service this endpointslice belongs to
+	svcName := eps.Labels["kubernetes.io/service-name"]
+	if svcName == "" {
+		w.logger.Warn("EndpointSlice missing service-name label", "endpointslice", epsKey)
+		return
+	}
+
+	// Allocate deterministic IDs based on IP:Port hash so the same backend
+	// always gets the same ID (survives agent restarts / "already exists" in CNC)
+	var addedBackends []cncapi.BackendInfo
+	for _, ep := range added {
+		addedBackends = append(addedBackends, cncapi.BackendInfo{
+			BackendID: backendIDFromAddr(ep.ip, ep.port),
+			IPAddress: ep.ip,
+			Port:      ep.port,
+		})
+	}
+
+	if len(addedBackends) > 0 {
+		for i, b := range addedBackends {
+			w.logger.Info("DEBUG CreateLoadBalancerBackends",
+				"endpointslice", epsKey,
+				"index", i,
+				"backendID", b.BackendID,
+				"ip", b.IPAddress.String(),
+				"port", b.Port,
+			)
+		}
+		if err := api.CreateLoadBalancerBackends(addedBackends); err != nil {
+			if !isAlreadyExistsErr(err) {
 				w.logger.Error("Failed to create LB backends",
-					"endpointslice", eps.Namespace+"/"+eps.Name,
+					"endpointslice", epsKey, "error", err)
+				return
+			}
+			// "Already exists" is fine — backend IP:Port is already in CNC with same ID
+		}
+	}
+
+	// Link backends to service via UpdateLoadBalancerServiceBackends.
+	// This is a SWAP API: pass the full new set and the full old set.
+	if len(addedBackends) > 0 || len(removed) > 0 {
+		svc, err := w.k8s.CoreV1().Services(eps.Namespace).Get(context.Background(), svcName, metav1.GetOptions{})
+		if err != nil {
+			w.logger.Error("Failed to get service for EndpointSlice",
+				"endpointslice", epsKey, "service", svcName, "error", err)
+			return
+		}
+
+		// Compute the full new backend set (unchanged + added)
+		var allNewBackends []cncapi.BackendInfo
+		for _, b := range oldBackends {
+			key := ipPort{ip: b.IPAddress, port: b.Port}
+			if _, stillDesired := desiredSet[key]; stillDesired {
+				allNewBackends = append(allNewBackends, b)
+			}
+		}
+		allNewBackends = append(allNewBackends, addedBackends...)
+
+		for _, port := range svc.Spec.Ports {
+			clusterIP, err := netip.ParseAddr(svc.Spec.ClusterIP)
+			if err != nil {
+				continue
+			}
+			frontend := cncapi.FrontendInfo{
+				IPAddress: clusterIP,
+				Port:      uint16(port.Port),
+				Protocol:  protocolToUint8(port.Protocol),
+			}
+			svcType := cncapi.ServiceTypeClusterIP
+			switch svc.Spec.Type {
+			case corev1.ServiceTypeNodePort:
+				svcType = cncapi.ServiceTypeNodePort
+			case corev1.ServiceTypeLoadBalancer:
+				svcType = cncapi.ServiceTypeLoadBalancer
+			}
+			lbInfo := &cncapi.LoadBalancerInfo{
+				ServiceType: svcType,
+				Frontend:    frontend,
+			}
+			serviceID := servicePortID(svc, port)
+
+			w.logger.Info("DEBUG UpdateLoadBalancerServiceBackends",
+				"endpointslice", epsKey,
+				"service", eps.Namespace+"/"+svcName,
+				"serviceID", serviceID,
+				"serviceType", svcType,
+				"frontendIP", clusterIP.String(),
+				"frontendPort", port.Port,
+				"frontendProto", protocolToUint8(port.Protocol),
+				"newBackendsCount", len(allNewBackends),
+				"oldBackendsCount", len(oldBackends),
+			)
+
+			if err := api.UpdateLoadBalancerServiceBackends(serviceID, lbInfo, allNewBackends, oldBackends); err != nil {
+				w.logger.Error("Failed to update LB backends",
+					"endpointslice", epsKey,
+					"service", eps.Namespace+"/"+svcName,
+					"serviceID", serviceID,
 					"error", err)
 			}
-		} else {
-			w.logger.Info("LB backends updated",
-				"endpointslice", eps.Namespace+"/"+eps.Name,
-				"count", len(backends))
 		}
 	}
+
+	// Delete removed backend entries from CNC global table
+	if len(removed) > 0 {
+		var ids4, ids6 []uint32
+		for _, b := range removed {
+			if b.IPAddress.Is4() {
+				ids4 = append(ids4, b.BackendID)
+			} else {
+				ids6 = append(ids6, b.BackendID)
+			}
+		}
+		if len(ids4) > 0 {
+			_ = api.DeleteLoadBalancerBackends(2, ids4)
+		}
+		if len(ids6) > 0 {
+			_ = api.DeleteLoadBalancerBackends(23, ids6)
+		}
+	}
+
+	w.logger.Info("LB backends reconciled",
+		"endpointslice", epsKey,
+		"added", len(addedBackends),
+		"removed", len(removed))
+
+	// Update stored state: keep unchanged + add new
+	w.mu.Lock()
+	var current []cncapi.BackendInfo
+	// Keep backends that are still desired
+	for _, b := range oldBackends {
+		key := ipPort{ip: b.IPAddress, port: b.Port}
+		if _, stillDesired := desiredSet[key]; stillDesired {
+			current = append(current, b)
+		}
+	}
+	// Add newly created backends
+	current = append(current, addedBackends...)
+	if len(current) > 0 {
+		w.svcBackends[epsKey] = current
+	} else {
+		delete(w.svcBackends, epsKey)
+	}
+	w.mu.Unlock()
 }
 
+
 func (w *K8sWatcher) onEndpointSliceDelete(eps *discoveryv1.EndpointSlice) {
-	// On delete, backends will be cleaned up by service deletion
-	w.logger.Info("EndpointSlice deleted",
-		"endpointslice", eps.Namespace+"/"+eps.Name)
+	api := w.client.API()
+	if api == nil {
+		return
+	}
+
+	epsKey := eps.Namespace + "/" + eps.Name
+
+	w.mu.Lock()
+	oldBackends := w.svcBackends[epsKey]
+	delete(w.svcBackends, epsKey)
+	w.mu.Unlock()
+
+	if len(oldBackends) > 0 {
+		// Delete the backends by their IDs
+		var ids4, ids6 []uint32
+		for _, b := range oldBackends {
+			if b.IPAddress.Is4() {
+				ids4 = append(ids4, b.BackendID)
+			} else {
+				ids6 = append(ids6, b.BackendID)
+			}
+		}
+		if len(ids4) > 0 {
+			if err := api.DeleteLoadBalancerBackends(2, ids4); err != nil { // AF_INET=2
+				w.logger.Error("Failed to delete IPv4 backends", "endpointslice", epsKey, "error", err)
+			}
+		}
+		if len(ids6) > 0 {
+			if err := api.DeleteLoadBalancerBackends(23, ids6); err != nil { // AF_INET6=23
+				w.logger.Error("Failed to delete IPv6 backends", "endpointslice", epsKey, "error", err)
+			}
+		}
+	}
+
+	w.logger.Info("EndpointSlice deleted", "endpointslice", epsKey, "backendsRemoved", len(oldBackends))
 }
 
 // servicePortID generates a stable uint16 service ID from service UID + port.
 func servicePortID(svc *corev1.Service, port corev1.ServicePort) uint16 {
-	// Simple hash: use port number as part of ID
-	// In production this should use a proper allocator
-	h := uint16(port.Port) ^ uint16(len(svc.UID))
-	if h == 0 {
-		h = 1
+	// FNV-1a hash over UID bytes + port to ensure unique IDs per service+port
+	var h uint32 = 2166136261
+	for _, c := range []byte(svc.UID) {
+		h ^= uint32(c)
+		h *= 16777619
 	}
-	return h
+	h ^= uint32(port.Port)
+	h *= 16777619
+	// Fold 32-bit into 16-bit
+	id := uint16(h) ^ uint16(h>>16)
+	if id == 0 {
+		id = 1
+	}
+	return id
 }
 
 func protocolToUint8(p corev1.Protocol) uint8 {
@@ -378,4 +608,23 @@ func protocolToUint8(p corev1.Protocol) uint8 {
 // isAlreadyExistsErr checks if the error is an "already exists" HRESULT (0x800700B7).
 func isAlreadyExistsErr(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "0x800700B7")
+}
+
+// backendIDFromAddr generates a deterministic uint32 backend ID from IP:Port.
+// This ensures the same backend always gets the same ID regardless of agent restarts,
+// which is critical because CNC identifies backends by ID and rejects mismatches.
+func backendIDFromAddr(ip netip.Addr, port uint16) uint32 {
+	b := ip.As16()
+	// FNV-1a style hash
+	var h uint32 = 2166136261
+	for _, c := range b {
+		h ^= uint32(c)
+		h *= 16777619
+	}
+	h ^= uint32(port)
+	h *= 16777619
+	if h == 0 {
+		h = 1
+	}
+	return h
 }
