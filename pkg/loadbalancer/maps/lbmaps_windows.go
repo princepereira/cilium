@@ -13,6 +13,7 @@ import (
 	"sync"
 
 	"github.com/cilium/cilium/pkg/bpf"
+	"github.com/cilium/cilium/pkg/byteorder"
 	"github.com/cilium/cilium/pkg/loadbalancer"
 	"github.com/princepereira/cncshim/pkg/cncapi"
 )
@@ -133,7 +134,7 @@ func (m *CNCLBMaps) UpdateService(key ServiceKey, value ServiceValue) error {
 		return fmt.Errorf("CNC API client not initialized")
 	}
 
-	serviceID := uint16(value.GetRevNat())
+	serviceID := byteorder.NetworkToHost16(uint16(value.GetRevNat()))
 
 	frontend := cncapi.FrontendInfo{
 		IPAddress: hostKey.GetAddress(),
@@ -151,14 +152,34 @@ func (m *CNCLBMaps) UpdateService(key ServiceKey, value ServiceValue) error {
 	if !m.createdServices[serviceID] {
 		err := api.CreateLoadBalancerService(serviceID, lbInfo)
 		if err != nil {
-			// Treat ERROR_ALREADY_EXISTS as success (service from previous agent run)
-			if !isAlreadyExistsError(err) {
+			if isAlreadyExistsError(err) {
+				// Service exists from this same agent run or previous lifecycle.
+				// Try delete + recreate to ensure correct frontend mapping.
+				delErr := api.DeleteLoadBalancerService(serviceID, lbInfo)
+				if delErr != nil {
+					m.log.Warn("CNC DeleteLoadBalancerService failed (stale entry)",
+						"serviceID", serviceID, "error", delErr)
+				}
+				err = api.CreateLoadBalancerService(serviceID, lbInfo)
+				if err != nil && isAlreadyExistsError(err) {
+					// Delete failed and service still exists — accept it and continue
+					m.log.Warn("CNC service still exists after delete attempt, continuing",
+						"serviceID", serviceID)
+				} else if err != nil {
+					return fmt.Errorf("CNC CreateLoadBalancerService (retry): %w", err)
+				} else {
+					m.log.Info("CNC CreateLoadBalancerService recreated",
+						"serviceID", serviceID,
+						"frontend", fmt.Sprintf("%s:%d/%d", hostKey.GetAddress(), hostKey.GetPort(), hostKey.GetProtocol()))
+				}
+			} else {
 				return fmt.Errorf("CNC CreateLoadBalancerService: %w", err)
 			}
+		} else {
+			m.log.Info("CNC CreateLoadBalancerService succeeded",
+				"serviceID", serviceID,
+				"frontend", fmt.Sprintf("%s:%d/%d", hostKey.GetAddress(), hostKey.GetPort(), hostKey.GetProtocol()))
 		}
-		m.log.Info("CNC CreateLoadBalancerService succeeded",
-			"serviceID", serviceID,
-			"frontend", fmt.Sprintf("%s:%d/%d", hostKey.GetAddress(), hostKey.GetPort(), hostKey.GetProtocol()))
 		m.createdServices[serviceID] = true
 	}
 
@@ -188,6 +209,60 @@ func (m *CNCLBMaps) UpdateService(key ServiceKey, value ServiceValue) error {
 
 	// Get old backends (what CNC currently has for this service)
 	oldBackends := m.cncBackends[serviceID]
+
+	// Diagnostic: verify service exists in CNC before update
+	storedSvc, getErr := api.GetLoadBalancerService(&frontend)
+	if getErr != nil {
+		m.log.Warn("CNC GetLoadBalancerService failed (pre-update check)",
+			"serviceID", serviceID,
+			"frontend", fmt.Sprintf("%s:%d/%d", hostKey.GetAddress(), hostKey.GetPort(), hostKey.GetProtocol()),
+			"error", getErr)
+	} else {
+		m.log.Info("CNC GetLoadBalancerService (pre-update check)",
+			"serviceID", serviceID,
+			"storedServiceType", storedSvc.ServiceType,
+			"storedFrontend", fmt.Sprintf("%s:%d/%d", storedSvc.Frontend.IPAddress, storedSvc.Frontend.Port, storedSvc.Frontend.Protocol),
+			"storedFlags", storedSvc.ServiceFlags,
+			"storedAffinity", storedSvc.AffinityTimeoutSeconds)
+	}
+
+	// Diagnostic: verify backends exist in CNC
+	beIDs := make([]uint32, len(newBackends))
+	for i, b := range newBackends {
+		beIDs[i] = b.BackendID
+	}
+	storedBEs, getBEErr := api.GetLoadBalancerBackends(2, beIDs) // AF_INET=2
+	if getBEErr != nil {
+		m.log.Warn("CNC GetLoadBalancerBackends failed (pre-update check)",
+			"backendIDs", fmt.Sprintf("%v", beIDs),
+			"error", getBEErr)
+	} else {
+		for i, res := range storedBEs {
+			m.log.Info("CNC GetLoadBalancerBackends (pre-update check)",
+				"index", i,
+				"backendID", res.Info.BackendID,
+				"address", fmt.Sprintf("%s:%d", res.Info.IPAddress, res.Info.Port),
+				"result", res.Result)
+		}
+	}
+
+	m.log.Info("CNC UpdateLoadBalancerServiceBackends calling",
+		"serviceID", serviceID,
+		"frontend", fmt.Sprintf("%s:%d/%d", hostKey.GetAddress(), hostKey.GetPort(), hostKey.GetProtocol()),
+		"newBackends", len(newBackends),
+		"oldBackends", len(oldBackends),
+		"newBackendIDs", fmt.Sprintf("%v", pendingIDs))
+
+	// Log exact backend details being passed
+	for i, be := range newBackends {
+		m.log.Info("CNC UpdateServiceBackends newBackend detail",
+			"index", i,
+			"backendID", be.BackendID,
+			"ip", be.IPAddress.String(),
+			"ipIs4", be.IPAddress.Is4(),
+			"ipIsValid", be.IPAddress.IsValid(),
+			"port", be.Port)
+	}
 
 	// Call UpdateLoadBalancerServiceBackends (swap semantics)
 	err := api.UpdateLoadBalancerServiceBackends(serviceID, lbInfo, newBackends, oldBackends)
@@ -225,7 +300,7 @@ func (m *CNCLBMaps) DeleteService(key ServiceKey) error {
 			return nil
 		}
 
-		serviceID := uint16(entry.value.GetRevNat())
+		serviceID := byteorder.NetworkToHost16(uint16(entry.value.GetRevNat()))
 		lbInfo := &cncapi.LoadBalancerInfo{
 			Frontend: cncapi.FrontendInfo{
 				IPAddress: hostKey.GetAddress(),
