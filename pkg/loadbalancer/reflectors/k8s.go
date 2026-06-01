@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Authors of Cilium
 
-//go:build !windows
-
 package reflectors
 
 import (
@@ -108,8 +106,10 @@ func (p reflectorParams) waitTime() time.Duration {
 
 func RegisterK8sReflector(p reflectorParams) {
 	if !p.Writer.IsEnabled() || !p.Clientset.IsEnabled() {
+		p.Log.Warn("K8s reflector not registered", "writerEnabled", p.Writer.IsEnabled(), "clientsetEnabled", p.Clientset.IsEnabled())
 		return
 	}
+	p.Log.Info("K8s reflector registering jobs")
 	if p.SVCMetrics == nil {
 		p.SVCMetrics = NewSVCMetricsNoop()
 	}
@@ -219,6 +219,7 @@ func runPodReflector(ctx context.Context, health cell.Health, p reflectorParams,
 }
 
 func runServiceEndpointsReflector(ctx context.Context, health cell.Health, p reflectorParams, initServices, initEndpoints func(writer.WriteTxn)) error {
+	p.Log.Info("runServiceEndpointsReflector started")
 	rh := newReflectorHealth(health, p.Log)
 
 	upsertService := func(txn writer.WriteTxn, obj *slim_corev1.Service) {
@@ -331,6 +332,11 @@ func runServiceEndpointsReflector(ctx context.Context, health cell.Health, p ref
 				backends := convertEndpoints(p.Log, p.ExtConfig, name, maps.All(eps.Backends))
 
 				err := p.Writer.UpsertBackends(txn, name, source.Kubernetes, backends)
+				if err != nil {
+					p.Log.Error("UpsertBackends failed", "service", name.String(), "error", err)
+				} else {
+					p.Log.Info("UpsertBackends succeeded", "service", name.String(), "endpointCount", len(eps.Backends))
+				}
 				rh.update("eps:"+name.String(), err)
 				if err != nil {
 					continue
@@ -394,9 +400,11 @@ func runServiceEndpointsReflector(ctx context.Context, health cell.Health, p ref
 
 			err = p.Writer.UpsertAndReleaseBackends(txn, name, source.Kubernetes, backends, orphans)
 			if err != nil {
+				p.Log.Error("UpsertAndReleaseBackends failed", "service", name.String(), "error", err)
 				rh.update("eps:"+name.String(), err)
 				return
 			}
+			p.Log.Info("UpsertAndReleaseBackends succeeded", "service", name.String())
 
 			for ep := range allEps.All() {
 				if len(ep.backends) == 0 {
@@ -453,6 +461,7 @@ func runServiceEndpointsReflector(ctx context.Context, health cell.Health, p ref
 	}
 
 	for buf := range events {
+		p.Log.Info("reflector processing buffer", "size", buf.Len())
 		processBuffer(buf)
 		buf.Clear()
 		bufferPool.Put(buf)
@@ -956,8 +965,10 @@ func serviceEvents(cs client.Clientset, cfg k8s.ConfigParams) (stream.Observable
 
 func newEventStream(log *slog.Logger, cs client.Clientset, cfg k8s.ConfigParams) (stream.Observable[event], error) {
 	if !cs.IsEnabled() {
+		log.Warn("newEventStream: clientset not enabled, returning empty stream")
 		return stream.Empty[event](), nil
 	}
+	log.Info("newEventStream: creating K8s event streams")
 	svcEvents, err := serviceEvents(cs, cfg)
 	if err != nil {
 		return nil, err

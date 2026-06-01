@@ -7,12 +7,10 @@ package reflectors
 
 import "github.com/cilium/hive/cell"
 
-const K8sInitializerPrefix = "k8s-"
+// FileReflectorCell is a no-op on Windows.
+var FileReflectorCell = cell.Module("file-reflector", "File reflector - no-op on Windows")
 
-type K8sReflectorRegistered struct{}
-
-var K8sReflectorCell = cell.Module("k8s-reflector", "Kubernetes reflector (unsupported on windows)", cell.Provide(func() K8sReflectorRegistered { return K8sReflectorRegistered{} }))
-var FileReflectorCell = cell.Module("file-reflector", "File reflector (unsupported on windows)")
+// Cell provides the Windows load-balancing reflectors.
 var Cell = cell.Module(
 	"loadbalancer-reflectors",
 	"Reflects external state to load-balancing tables",

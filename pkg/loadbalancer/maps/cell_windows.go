@@ -12,7 +12,7 @@ import (
 // Cell provides the Windows CNC-based LBMaps implementation.
 var Cell = cell.Module(
 	"loadbalancer-maps",
-	"Load-balancing CNC maps (Windows)",
+	"Load-balancing CNC maps for Windows",
 
 	cell.Provide(newCNCLBMaps),
 )
