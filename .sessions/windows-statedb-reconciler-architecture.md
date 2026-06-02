@@ -1,6 +1,6 @@
 # Session: Windows StateDB Reconciler Architecture
 
-**Date**: 2026-05-27 to 2026-06-01
+**Date**: 2026-05-27 to 2026-06-02
 **Goal**: Port Windows Cilium agent from direct K8sWatcher→CNC to proper Watcher→Store→Reconciler pattern
 **Session ID**: `54b865db-02da-4d08-8097-9449bf93fd6c`
 **Resume**: `/resume 54b865db-02da-4d08-8097-9449bf93fd6c`
@@ -181,7 +181,7 @@ var Agent = cell.Module("agent", "Cilium Agent Windows",
 
 ---
 
-## Current Status (2026-06-01)
+## Current Status (2026-06-02)
 
 ### ✅ Working End-to-End
 - Agent starts, connects to K8s API and CNC API (with retry on CNC init failure)
@@ -190,7 +190,7 @@ var Agent = cell.Module("agent", "Cilium Agent Windows",
 - `fe.Backends` lazy iterator correctly yields backends
 - `CreateLoadBalancerService` succeeds with correct ports (host byte order)
 - `CreateLoadBalancerBackends` succeeds (with delete-recreate for stale entries)
-- `UpdateLoadBalancerServiceBackends` associates correct backend IDs to services
+- `UpdateLoadBalancerServiceBackends` — confirmed working with standalone test (serviceID=1)
 - Services visible in eBPF maps via `ebpf_state.exe show loadbalancers`
 
 ### ✅ Bugs Fixed This Session
@@ -199,13 +199,31 @@ var Agent = cell.Module("agent", "Cilium Agent Windows",
 3. **Byte-order bug** — CNC API expects host byte order; added `ToHost()` on ServiceKey and BackendValue
 4. **Stale backend IPs** — on agent restart, old backend IDs in CNC had wrong IPs; fixed with delete-then-recreate pattern
 5. **Repeated reconciliation loop** — was caused by errors in backend creation preventing "done" status
+6. **ServiceID byte-order** — `value.GetRevNat()` returns network-order; fixed with `byteorder.NetworkToHost16()` conversion
+7. **CNC reinitialization wipes LB maps** — removed `Close()+New()` cycle from `CNCClient.Start()` that was destroying active LB rules
+
+### ⚠️ Known Issues
+1. **Stale CNC state from old runs** — Previous runs with wrong serviceIDs (256, 512, etc.) leave stale entries; needs cleanup before fresh agent start
+2. **`--k8s-kubeconfig-path` flag not registered** — Windows `NewAgentCmd()` doesn't call `h.RegisterFlags(cmd.Flags())`; workaround: set `$env:KUBERNETES_SERVICE_HOST` env var
 
 ### 🔲 Remaining Work
-1. Remove excessive debug/diagnostic logging (keep essential INFO logs)
-2. Remove dead code: `pkg/datapath/win/k8s_watcher.go`
-3. Test pod scale up/down (dynamic backend changes)
-4. Test service deletion flow
-5. Consider cleanup of stale services on agent startup (full reconciliation)
+1. Register hive flags in Windows `NewAgentCmd()` for proper CLI flag support
+2. Remove excessive debug/diagnostic logging (keep essential INFO logs)
+3. Remove dead code: `pkg/datapath/win/k8s_watcher.go`
+4. Test pod scale up/down (dynamic backend changes)
+5. Test service deletion flow
+6. Consider cleanup of stale services on agent startup (full reconciliation)
+7. Add NodePort support
+8. Add Network Policy support via CNC policy APIs
+
+---
+
+## Documentation
+
+- `docs/windows-port-design.md` — Comprehensive design doc (build tags, omitted features, data flow comparison)
+- `docs/WINDOWS_BUILD.md` — Build instructions
+- `docs/windows-datapath-architecture.md` — CNC datapath architecture details
+- `docs/windows-datapath-architecture.pdf` — PDF version of architecture doc
 
 ---
 
@@ -232,8 +250,11 @@ ebpf_state.exe show loadbalancers filter <ClusterIP>
 2. ~~Verify end-to-end: service creation + backend association~~ ✅ Working
 3. ~~Fix the repeated reconciliation loop~~ ✅ Fixed (errors prevented reconciliation completion)
 4. ~~Fix stale backend IPs on restart~~ ✅ Fixed (delete-then-recreate pattern)
-5. Remove dead code: `pkg/datapath/win/k8s_watcher.go`
-6. Remove excessive debug/diagnostic logging (keep essential INFO logs)
-7. Test pod scale up/down (dynamic backend changes)
-8. Test service deletion flow
-9. Consider full reconciliation on startup (cleanup orphaned CNC entries)
+5. ~~Fix serviceID byte-order (E_INVALIDARG)~~ ✅ Fixed (`byteorder.NetworkToHost16()`)
+6. ~~Fix CNC reinitialize wiping LB maps~~ ✅ Fixed (removed Close+New cycle)
+7. Register hive flags in Windows `NewAgentCmd()` for `--k8s-kubeconfig-path` support
+8. Remove dead code: `pkg/datapath/win/k8s_watcher.go`
+9. Remove excessive debug/diagnostic logging (keep essential INFO logs)
+10. Test pod scale up/down (dynamic backend changes)
+11. Test service deletion flow
+12. Consider full reconciliation on startup (cleanup orphaned CNC entries)
