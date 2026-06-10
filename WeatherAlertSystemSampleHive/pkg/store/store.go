@@ -19,7 +19,7 @@ var Cell = cell.Module(
 	"Weather data store",
 
 	cell.Config(Config{MaxReadings: 100}),
-	cell.Provide(New),
+	cell.Provide(NewStore),
 )
 
 // Config holds store configuration.
@@ -48,7 +48,7 @@ type params struct {
 }
 
 // New creates a new Store instance.
-func New(p params) *Store {
+func NewStore(p params) *Store {
 	p.Log.Info("Store initialized", "maxReadings", p.Config.MaxReadings)
 	return &Store{
 		Readings: make([]model.WeatherReading, 0, p.Config.MaxReadings),

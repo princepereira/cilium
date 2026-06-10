@@ -24,7 +24,7 @@ var Cell = cell.Module(
 		Channel:   "console",
 		Recipient: "admin@example.com",
 	}),
-	cell.Provide(New),
+	cell.Provide(NewNotifier),
 )
 
 // Config holds notifier configuration.
@@ -56,7 +56,7 @@ type params struct {
 }
 
 // New creates a Notifier instance.
-func New(p params) *Notifier {
+func NewNotifier(p params) *Notifier {
 	p.Log.Info("Notifier initialized",
 		"channel", p.Config.Channel,
 		"recipient", p.Config.Recipient)

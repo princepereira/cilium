@@ -25,7 +25,7 @@ var Cell = cell.Module(
 		TempThreshold: 35.0,
 		WindThreshold: 80.0,
 	}),
-	cell.Provide(New),
+	cell.Provide(NewAlertEvaluator),
 	cell.Invoke(func(*Evaluator) {}), // Force instantiation (leaf cell)
 )
 
@@ -60,7 +60,7 @@ type params struct {
 }
 
 // New creates an Evaluator and registers lifecycle hooks.
-func New(p params) *Evaluator {
+func NewAlertEvaluator(p params) *Evaluator {
 	e := &Evaluator{
 		cfg:      p.Config,
 		log:      p.Log,

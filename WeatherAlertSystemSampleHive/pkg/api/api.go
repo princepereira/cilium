@@ -27,7 +27,7 @@ var Cell = cell.Module(
 	cell.Config(Config{
 		ListenAddr: ":8080",
 	}),
-	cell.Provide(New),
+	cell.Provide(NewAPIServer),
 	cell.Invoke(func(*Server) {}), // Force instantiation (leaf cell)
 )
 
@@ -57,7 +57,7 @@ type params struct {
 }
 
 // New creates the API server and registers lifecycle hooks.
-func New(p params) *Server {
+func NewAPIServer(p params) *Server {
 	mux := http.NewServeMux()
 	srv := &Server{
 		store: p.Store,

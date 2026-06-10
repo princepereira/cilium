@@ -26,7 +26,7 @@ var Cell = cell.Module(
 		PollInterval: 3 * time.Second,
 		Location:     "Seattle",
 	}),
-	cell.Provide(New),
+	cell.Provide(NewSensor),
 	cell.Invoke(func(*Sensor) {}), // Force instantiation (leaf cell)
 )
 
@@ -59,7 +59,7 @@ type params struct {
 }
 
 // New creates a Sensor and registers lifecycle hooks.
-func New(p params) *Sensor {
+func NewSensor(p params) *Sensor {
 	s := &Sensor{
 		cfg:   p.Config,
 		log:   p.Log,
