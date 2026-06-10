@@ -372,6 +372,340 @@ Provides Go bindings to the Windows CNC DLL via `syscall.LazyDLL`:
   └─ DNAT at packet level                   └─ DNAT at VFP/packet level
 ```
 
+### 5.4 Detailed Code Flow (Windows) — Function-Level Trace
+
+```
+═══════════════════════════════════════════════════════════════════════════════════
+                    WINDOWS CILIUM AGENT — LB RECONCILIATION FLOW
+═══════════════════════════════════════════════════════════════════════════════════
+
+CELLS INVOLVED:
+  ┌────────────────┐  ┌────────────────┐  ┌────────────────┐  ┌────────────────┐
+  │ client.Cell    │  │ reflectors.Cell│  │  writer.Cell   │  │ reconciler.Cell│
+  │ (K8s client)   │  │ (K8s watcher)  │  │ (StateDB write)│  │ (CNCOps)       │
+  └────────────────┘  └────────────────┘  └────────────────┘  └────────────────┘
+  ┌────────────────┐  ┌────────────────┐
+  │  maps.Cell     │  │ winDatapath.Cell│
+  │ (CNCLBMaps)    │  │ (CNC DLL conn) │
+  └────────────────┘  └────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════════
+
+STEP 1: K8s EndpointSlice Watch
+───────────────────────────────
+  File: pkg/loadbalancer/reflectors/k8s.go
+  Func: endpointsEvents() (~line 898)
+
+  K8s API ──ListerWatcher──► endpointsEvents()
+                                    │
+                                    ▼
+                             upsertEndpointEvent{eps}
+
+
+STEP 2: Reflector processes event → calls Writer
+────────────────────────────────────────────────
+  File: pkg/loadbalancer/reflectors/k8s.go
+  Func: runServiceEndpointsReflector() (~line 324)
+
+  upsertEndpointEvent ──► runServiceEndpointsReflector()
+                                    │
+                                    ▼
+                          p.Writer.UpsertBackends(txn, name, source.Kubernetes, backends)
+                          p.Writer.UpsertServiceAndFrontends(txn, ...)
+
+
+STEP 3: Writer inserts into StateDB tables
+──────────────────────────────────────────
+  File: pkg/loadbalancer/writer/writer.go
+  Funcs: UpsertBackends() (~line 641), UpsertServiceAndFrontends() (~line 330)
+
+  Writer.UpsertBackends()
+      │
+      ├──► w.bes.Insert(txn, &backend)        // backends table
+      │
+      └──► w.fes.Insert(txn, frontend)        // frontends table
+                                               // (marks Status = Pending)
+           txn.Commit()                        // ATOMIC — visible to readers
+
+
+STEP 4: Reconciler watches frontends table
+──────────────────────────────────────────
+  File: pkg/loadbalancer/reconciler/reconciler_windows.go
+  Func: newCNCReconciler() (~line 92)
+
+  reconciler.Register(
+      fes,                    // RWTable[*Frontend]
+      ...,
+      ops,                    // CNCOps (implements Operations[*Frontend])
+  )
+      │
+      │  (internally: watches Changes() on frontends table)
+      │
+      ▼
+  When a Frontend has Status=Pending → calls ops.Update(fe)
+  When a Frontend is deleted        → calls ops.Delete(fe)
+
+
+STEP 5: CNCOps.Update() — reconcile one frontend
+─────────────────────────────────────────────────
+  File: pkg/loadbalancer/reconciler/reconciler_windows.go
+  Func: CNCOps.Update() (~line 159)
+
+  CNCOps.Update(fe *Frontend)
+      │
+      ├─ serviceID := ops.serviceIDAlloc.Alloc(fe.Address)
+      │
+      ├─ for each backend in sortedBackends(fe):
+      │      beID := ops.backendIDAlloc.Alloc(be.Address)
+      │      │
+      │      ├──► ops.upsertBackend(beID, be)                    [STEP 6a]
+      │      │
+      │      └──► ops.LBMaps.UpdateService(slotKey, slotVal)     [STEP 6b]
+      │           (slot > 0: backend slot)
+      │
+      └─ ops.LBMaps.UpdateService(masterKey, masterVal)          [STEP 6c]
+         (slot = 0: master entry with backend count)
+
+
+STEP 6: CNCOps calls LBMaps interface
+──────────────────────────────────────
+  File: pkg/loadbalancer/reconciler/reconciler_windows.go
+  Func: upsertBackend() (~line 346)
+
+  6a) ops.LBMaps.UpdateBackend(backendKey, backendValue.ToNetwork())
+  6b) ops.LBMaps.UpdateService(slotKey.ToNetwork(), slotVal.ToNetwork())
+  6c) ops.LBMaps.UpdateService(masterKey.ToNetwork(), masterVal.ToNetwork())
+
+
+STEP 7: CNCLBMaps translates to CNC DLL calls
+──────────────────────────────────────────────
+  File: pkg/loadbalancer/maps/lbmaps_windows.go
+  Funcs: UpdateBackend() (~line 331), UpdateService() (~line 104)
+
+  7a) UpdateBackend(key, value):
+      │
+      └──► api.CreateLoadBalancerBackends([]BackendInfo{...})
+           (delete-recreate on ERROR_ALREADY_EXISTS)
+
+  7b) UpdateService(key, value) [slot > 0]:
+      │
+      └──► pendingSlots[frontend] = append(..., backendID)
+           (accumulate — no DLL call yet)
+
+  7c) UpdateService(key, value) [slot = 0 / master]:
+      │
+      ├──► serviceID = byteorder.NetworkToHost16(value.GetRevNat())
+      │
+      ├──► api.CreateLoadBalancerService(serviceID, lbInfo)
+      │    (skip if already created)
+      │
+      └──► api.UpdateLoadBalancerServiceBackends(
+               serviceID, lbInfo,
+               newBackends,      // from pendingSlots
+               oldBackends,      // from cncBackends[serviceID]
+           )
+           │
+           └──► CNC DLL (cnc.sys kernel driver) performs DNAT programming
+
+═══════════════════════════════════════════════════════════════════════════════════
+
+COMPLETE CALL CHAIN (single path):
+───────────────────────────────────
+
+  K8s API
+    → endpointsEvents()                         [reflectors/k8s.go:898]
+    → runServiceEndpointsReflector()            [reflectors/k8s.go:324]
+    → Writer.UpsertBackends()                   [writer/writer.go:641]
+    → w.fes.Insert(txn, fe); txn.Commit()       [writer/writer.go:330]
+    → reconciler detects Pending frontend       [reconciler framework]
+    → CNCOps.Update(fe)                         [reconciler/reconciler_windows.go:159]
+    → ops.upsertBackend() + ops.LBMaps.UpdateService()
+    → CNCLBMaps.UpdateBackend()                 [maps/lbmaps_windows.go:331]
+    → CNCLBMaps.UpdateService()                 [maps/lbmaps_windows.go:104]
+    → api.CreateLoadBalancerService()           [cncshim/cncapi/client.go:390]
+    → api.UpdateLoadBalancerServiceBackends()   [cncshim/cncapi/client.go:400]
+    → CNC DLL syscall → kernel VFP rules
+
+═══════════════════════════════════════════════════════════════════════════════════
+```
+
+#### Cell Dependency Graph
+
+```
+═══════════════════════════════════════════════════════════════════════════════════
+                     WINDOWS AGENT — CELL INTERCONNECTION MAP
+═══════════════════════════════════════════════════════════════════════════════════
+
+Each arrow shows what TYPE flows from one cell to another via Hive DI.
+Arrows labeled with the Go type that is Provided by the source and consumed
+by the destination.
+
+                        ┌─────────────────────┐
+                        │   Hive Framework     │
+                        │                      │
+                        │  provides to ALL:    │
+                        │  • *slog.Logger      │
+                        │  • cell.Lifecycle     │
+                        │  • *statedb.DB       │
+                        │  • job.Group         │
+                        │  • cell.Health       │
+                        └──────────┬───────────┘
+                                   │
+          ┌────────────────────────┼─────────────────────────┐
+          │                        │                          │
+          ▼                        ▼                          ▼
+┌──────────────────┐  ┌───────────────────────┐  ┌───────────────────────┐
+│ winDatapath.Cell │  │    client.Cell         │  │   Config Cells        │
+│ (datapath-win)   │  │    (K8s client)        │  │                       │
+│                  │  │                        │  │  loadbalancer.Config  │
+│ Provide:         │  │ Provide:               │  │  Cell                 │
+│  newCNCClient()  │  │  NewClientset()        │  │  maglev.Cell          │
+│                  │  │                        │  │  kpr.Cell             │
+│ OUTPUT:          │  │ OUTPUT:                │  │  nodeipamconfig.Cell  │
+│  *CNCClient     │  │  client.Clientset      │  │  lbipamconfig.Cell    │
+│                  │  │                        │  │  k8s.DefaultConfig    │
+└────────┬─────────┘  └────────┬──────────────┘  │                       │
+         │                     │                  │ OUTPUT:               │
+         │                     │                  │  loadbalancer.Config  │
+         │                     │                  │  loadbalancer.ExtCfg  │
+         │                     │                  │  maglev.Config        │
+         │                     │                  │  k8s.Config           │
+         │                     │                  └───────┬───────────────┘
+         │                     │                          │
+         │                     │    ┌─────────────────────┘
+         │                     │    │
+         │                     ▼    ▼
+         │            ┌────────────────────────────────────────────────┐
+         │            │               writer.Cell                      │
+         │            │         (loadbalancer-writer)                   │
+         │            │                                                │
+         │            │ Creates (private):                             │
+         │            │   RWTable[*Service]                            │
+         │            │   RWTable[*Frontend]                           │
+         │            │   RWTable[*Backend]                            │
+         │            │                                                │
+         │            │ Provide (public):                              │
+         │            │   *Writer            ◄── writerParams:         │
+         │            │   Table[*Service]        • *statedb.DB         │
+         │            │   Table[*Frontend]       • loadbalancer.Config │
+         │            │   Table[*Backend]        • Table[NodeAddress]  │
+         │            │                          • Table[*LocalNode]   │
+         │            │                          • source.Sources      │
+         │            └───────────┬──────────────┬───────────────────┘
+         │                        │              │
+         │         ┌──────────────┘              │
+         │         │                             │
+         │         ▼                             │
+         │  ┌───────────────────────────────┐   │
+         │  │      reflectors.Cell          │   │
+         │  │   (loadbalancer-reflectors)    │   │
+         │  │                               │   │
+         │  │  K8sReflectorCell:            │   │
+         │  │   provideK8sReflector()       │   │
+         │  │                               │   │
+         │  │  reflectorParams:             │   │
+         │  │   • client.Clientset ◄────────│───│──── client.Cell
+         │  │   • *Writer          ◄────────│───│──── writer.Cell
+         │  │   • Table[LocalPod]  ◄────────│───│──── k8stables
+         │  │   • loadbalancer.Config       │   │
+         │  │   • loadbalancer.ExtConfig    │   │
+         │  │   • Table[*LocalNode]         │   │
+         │  │   • HaveNetNSCookieSupport    │   │
+         │  │                               │   │
+         │  │  FileReflectorCell: no-op     │   │
+         │  │  NetnsCookieSupport: false    │   │
+         │  └───────────────────────────────┘   │
+         │                                      │
+         │                                      │
+         ▼                                      ▼
+┌──────────────────────┐            ┌────────────────────────────────────┐
+│    maps.Cell         │            │        reconciler.Cell             │
+│  (loadbalancer-maps) │            │   (loadbalancer-reconciler)        │
+│                      │            │                                    │
+│ Provide:             │            │ Provide:                           │
+│  newCNCLBMaps()      │            │  newCNCOps()                       │
+│                      │            │  newCNCReconciler()                 │
+│ lbmapsParams:        │            │                                    │
+│  • *slog.Logger      │            │ cncOpsParams:                      │
+│  • maglev.Config     │            │  • LBMaps        ◄──── maps.Cell  │
+│  • loadbalancer.Cfg  │            │  • Table[*Backend]◄──── writer.Cell│
+│  • loadbalancer.Ext  │            │  • *slog.Logger                    │
+│                      │            │                                    │
+│ OUTPUT:              │            │ newCNCReconciler params:            │
+│  LBMaps (interface)──│──────────► │  • *CNCOps                         │
+│                      │            │  • Table[*Frontend] ◄── writer.Cell│
+│                      │            │  • *Writer          ◄── writer.Cell│
+│                      │            │  • reconciler.Params (framework)   │
+│                      │            │                                    │
+│ SetAPI() injected    │            │ OUTPUT:                             │
+│ at runtime by:       │            │  Promise[Reconciler[*Frontend]]    │
+│ wireCNCClientToLBMaps│            └────────────────────────────────────┘
+└──────────┬───────────┘
+           │
+           │
+           ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    cell.Invoke(wireCNCClientToLBMaps)                    │
+│                                                                         │
+│  Consumes:                                                              │
+│    • *CNCClient  ◄──── winDatapath.Cell                                │
+│    • LBMaps      ◄──── maps.Cell                                       │
+│    • cell.Lifecycle (from Hive)                                         │
+│                                                                         │
+│  OnStart hook:                                                          │
+│    go func() {                                                          │
+│        <-client.Ready()               // wait for CNC DLL              │
+│        lbMaps.(apiSetter).SetAPI(     // inject CNC API into maps      │
+│            client.API(),                                                │
+│        )                                                                │
+│    }()                                                                  │
+│                                                                         │
+│  This bridges winDatapath.Cell ──► maps.Cell at runtime                │
+└─────────────────────────────────────────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════════════════════════
+  SUMMARY: What each cell PROVIDES and CONSUMES
+═══════════════════════════════════════════════════════════════════════════════════
+
+  CELL                  │ PROVIDES (OUTPUT)            │ CONSUMES (INPUT)
+  ──────────────────────┼──────────────────────────────┼──────────────────────────
+  winDatapath.Cell      │ *CNCClient                   │ Logger, Lifecycle
+  client.Cell           │ client.Clientset             │ Logger, Lifecycle
+  loadbalancer.ConfigCell│ Config, ExternalConfig      │ *DaemonConfig
+  maglev.Cell           │ maglev.Config                │ —
+  node.LocalNodeStore   │ Table[*LocalNode]            │ ClusterInfo
+  writer.Cell           │ *Writer, Table[*Frontend],   │ *statedb.DB, Config,
+                        │ Table[*Backend],             │ Table[NodeAddress],
+                        │ Table[*Service]              │ Table[*LocalNode],
+                        │                              │ source.Sources
+  reflectors.Cell       │ K8sReflectorRegistered       │ Clientset, *Writer,
+                        │                              │ Table[LocalPod],
+                        │                              │ Config, Table[*LocalNode]
+  maps.Cell             │ LBMaps (interface)           │ Logger, Config,
+                        │                              │ maglev.Config
+  reconciler.Cell       │ *CNCOps,                     │ LBMaps, Table[*Backend],
+                        │ Promise[Reconciler]          │ Table[*Frontend], *Writer
+  wireCNCClientToLBMaps │ (side-effect only)           │ *CNCClient, LBMaps
+
+═══════════════════════════════════════════════════════════════════════════════════
+
+  SHARED StateDB TABLES (the communication bus between cells):
+
+  ┌─────────────────────┐
+  │ Table: "frontends"  │ Written by: writer.Cell (via reflectors.Cell calls)
+  │                     │ Read by:    reconciler.Cell (watches Changes)
+  ├─────────────────────┤
+  │ Table: "backends"   │ Written by: writer.Cell
+  │                     │ Read by:    reconciler.Cell (via fe.Backends iterator)
+  ├─────────────────────┤
+  │ Table: "services"   │ Written by: writer.Cell
+  │                     │ Read by:    (metadata only, not directly by reconciler)
+  └─────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════════
+```
+
 ---
 
 ## 6. Features Omitted on Windows
