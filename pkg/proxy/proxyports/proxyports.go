@@ -14,7 +14,6 @@ import (
 
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/job"
-	"github.com/google/renameio/v2"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/spf13/pflag"
 
@@ -556,7 +555,7 @@ func (p *ProxyPorts) StoreProxyPorts(ctx context.Context) error {
 	scopedLogger := p.logger.With(logfields.Path, p.proxyPortsPath)
 
 	// use renameio to prevent partial writes
-	out, err := renameio.NewPendingFile(p.proxyPortsPath, renameio.WithExistingPermissions(), renameio.WithPermissions(0o600))
+	out, err := newPendingFile(p.proxyPortsPath)
 	if err != nil {
 		scopedLogger.Error("failed to prepare proxy ports file", logfields.Error, err)
 		return err
