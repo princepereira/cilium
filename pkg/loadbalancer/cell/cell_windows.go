@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Authors of Cilium
 
+//go:build windows
+
 package cell
 
 import (
@@ -10,7 +12,6 @@ import (
 	"github.com/cilium/cilium/pkg/loadbalancer/healthserver"
 	"github.com/cilium/cilium/pkg/loadbalancer/maps"
 	"github.com/cilium/cilium/pkg/loadbalancer/reconciler"
-	"github.com/cilium/cilium/pkg/loadbalancer/redirectpolicy"
 	"github.com/cilium/cilium/pkg/loadbalancer/reflectors"
 	"github.com/cilium/cilium/pkg/loadbalancer/writer"
 )
@@ -32,8 +33,8 @@ var Cell = cell.Group(
 	// Reconciliation from tables to BPF maps.
 	reconciler.Cell,
 
-	// Control-plane for CiliumLocalRedirectPolicy
-	redirectpolicy.Cell,
+	// // Control-plane for CiliumLocalRedirectPolicy
+	// redirectpolicy.Cell,
 
 	// Support for HealthCheckNodePort
 	healthserver.Cell,
