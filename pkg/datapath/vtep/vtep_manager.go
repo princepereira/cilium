@@ -1,3 +1,5 @@
+//go:build linux
+
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Authors of Cilium
 
@@ -18,17 +20,10 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
 	"github.com/cilium/cilium/pkg/defaults"
 	"github.com/cilium/cilium/pkg/logging/logfields"
-	"github.com/cilium/cilium/pkg/mac"
 	"github.com/cilium/cilium/pkg/maps/vtep"
 	"github.com/cilium/cilium/pkg/mtu"
 	"github.com/cilium/cilium/pkg/option"
 )
-
-type vtepManagerConfig struct {
-	vtepEndpoints []netip.Addr
-	vtepCIDRs     []netip.Prefix
-	vtepMACs      []mac.MAC
-}
 
 type vtepManager struct {
 	logger  *slog.Logger

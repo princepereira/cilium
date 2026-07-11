@@ -5,14 +5,12 @@ package ctmap
 
 import (
 	"errors"
-
-	"golang.org/x/sys/unix"
+	"syscall"
 
 	"github.com/cilium/cilium/pkg/bpf"
 	"github.com/cilium/cilium/pkg/maps/nat"
 	"github.com/cilium/cilium/pkg/tuple"
 )
-
 // NOTE: the function does NOT copy addr fields, so it's not safe to
 // reuse the returned ctKey.
 func dsrCTKeyFromEgressNatKey(k nat.NatKey) bpf.MapKey {
@@ -137,7 +135,7 @@ func ctEntryExist(ctMap *Map, ctKey bpf.MapKey, f func(*CtEntry) bool) bool {
 	v, err := ctMap.Lookup(ctKey)
 
 	if err != nil {
-		return !errors.Is(err, unix.ENOENT)
+		return !errors.Is(err, syscall.ENOENT)
 	}
 
 	if f == nil {

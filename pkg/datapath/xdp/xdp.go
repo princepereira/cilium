@@ -6,7 +6,6 @@ package xdp
 import (
 	"fmt"
 
-	"github.com/cilium/ebpf/link"
 	"github.com/cilium/hive/cell"
 )
 
@@ -140,18 +139,6 @@ func (cfg Config) Mode() Mode {
 
 // Disabled returns true if XDP is disabled based on the configuration.
 func (cfg Config) Disabled() bool { return cfg.mode == AccelerationModeDisabled }
-
-// GetAttachFlags returns the XDP attach flags for the configured TCMode.
-func (cfg Config) GetAttachFlags() link.XDPAttachFlags {
-	switch cfg.mode {
-	case AccelerationModeNative, AccelerationModeBestEffort:
-		return link.XDPDriverMode
-	case AccelerationModeGeneric:
-		return link.XDPGenericMode
-	}
-
-	return 0
-}
 
 // EnablerOut allows requesting to enable a certain XDP operating mode.
 type EnablerOut struct {

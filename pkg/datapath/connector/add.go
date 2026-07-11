@@ -9,9 +9,6 @@ import (
 	"slices"
 
 	"github.com/vishvananda/netlink"
-	"golang.org/x/sys/unix"
-
-	"github.com/cilium/cilium/pkg/datapath/linux/sysctl"
 )
 
 const (
@@ -39,8 +36,8 @@ func CniAltName(ifName string) string {
 // Endpoint2IfName returns the host interface name for the given endpointID.
 func Endpoint2IfName(endpointID string) string {
 	sum := fmt.Sprintf("%x", sha256.Sum256([]byte(endpointID)))
-	// returned string length should be < unix.IFNAMSIZ
-	truncateLength := uint(unix.IFNAMSIZ - len(temporaryInterfacePrefix) - 1)
+	// returned string length should be < ifNameSize
+	truncateLength := uint(ifNameSize - len(temporaryInterfacePrefix) - 1)
 	return HostInterfacePrefix + truncateString(sum, truncateLength)
 }
 
@@ -55,9 +52,4 @@ func truncateString(epID string, maxLen uint) string {
 		return epID[:maxLen]
 	}
 	return epID
-}
-
-// DisableRpFilter tries to disable rpfilter on specified interface
-func DisableRpFilter(sysctl sysctl.Sysctl, ifName string) error {
-	return sysctl.Disable([]string{"net", "ipv4", "conf", ifName, "rp_filter"})
 }

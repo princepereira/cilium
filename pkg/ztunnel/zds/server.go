@@ -13,7 +13,6 @@ import (
 	"sync"
 
 	"github.com/cilium/hive/cell"
-	"golang.org/x/sys/unix"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/cilium/cilium/pkg/endpoint"
@@ -65,7 +64,7 @@ func (zc *ztunnelConn) readMsg(msg proto.Message) error {
 	}
 
 	// Check if message was truncated (MSG_TRUNC flag)
-	if flags&unix.MSG_TRUNC != 0 {
+	if flags&msgTrunc != 0 {
 		return fmt.Errorf("message truncated: received %d bytes but message was larger than 1024 byte buffer", n)
 	}
 
@@ -75,7 +74,7 @@ func (zc *ztunnelConn) readMsg(msg proto.Message) error {
 func (zc *ztunnelConn) sendMsg(req *pb.WorkloadRequest, ns *netns.NetNS) error {
 	var rights []byte
 	if ns != nil {
-		rights = unix.UnixRights(ns.FD())
+		rights = socketControlRights(ns.FD())
 		defer ns.Close()
 	}
 	data, err := proto.Marshal(req)

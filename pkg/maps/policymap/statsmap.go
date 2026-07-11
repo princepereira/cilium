@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"math"
 	"strconv"
+	"syscall"
 	"unsafe"
 
 	ciliumebpf "github.com/cilium/ebpf"
@@ -131,7 +132,7 @@ func (m *StatsMap) GetStat(epID uint16, k PolicyKey) (packets, bytes uint64) {
 		return packets, bytes
 	}
 
-	if !errors.Is(err, unix.ENOENT) {
+	if !errors.Is(err, syscall.ENOENT) {
 		m.log.Warn("Error getting policy stats",
 			logfields.Error, err,
 			logfields.BPFMapKey, statsKey)
@@ -152,7 +153,7 @@ func (m *StatsMap) ClearStat(epID uint16, k PolicyKey) error {
 
 	err := m.Delete(&statsKey)
 
-	if err == nil || errors.Is(err, unix.ENOENT) {
+	if err == nil || errors.Is(err, syscall.ENOENT) {
 		return nil
 	}
 

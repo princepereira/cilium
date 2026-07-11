@@ -20,6 +20,19 @@ func NewHandle(cfg *HandleConfig) (*netlink.Handle, error) {
 	return nil, netlink.ErrNotImplemented
 }
 
+// WithRetry runs the given netlink function, retrying on EINTR. On non-Linux
+// platforms there is no netlink socket to interrupt, so it simply invokes the
+// function once.
+func WithRetry(netlinkFunc func() error) error {
+	return netlinkFunc()
+}
+
+// WithRetryResult runs the given netlink function returning a result, retrying
+// on EINTR. On non-Linux platforms it simply invokes the function once.
+func WithRetryResult[T any](netlinkFunc func() (T, error)) (T, error) {
+	return netlinkFunc()
+}
+
 func AddrList(link netlink.Link, family int) ([]netlink.Addr, error) {
 	return nil, netlink.ErrNotImplemented
 }

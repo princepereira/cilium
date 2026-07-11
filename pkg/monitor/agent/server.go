@@ -28,7 +28,7 @@ func buildServer(logger *slog.Logger, path string) (*net.UnixListener, error) {
 		return nil, fmt.Errorf("cannot listen on unix socket %s: %w", path, err)
 	}
 
-	if os.Getuid() == 0 {
+	if runningAsRoot() {
 		err := api.SetDefaultPermissions(logger.Debug, path)
 		if err != nil {
 			server.Close()

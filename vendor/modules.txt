@@ -1375,6 +1375,9 @@ github.com/planetscale/vtprotobuf/types/known/wrapperspb
 # github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2
 ## explicit
 github.com/pmezard/go-difflib/difflib
+# github.com/princepereira/cncshim v0.1.3
+## explicit; go 1.26
+github.com/princepereira/cncshim/pkg/cncapi
 # github.com/prometheus-community/pro-bing v0.9.0
 ## explicit; go 1.25.0
 github.com/prometheus-community/pro-bing

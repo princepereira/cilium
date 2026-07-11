@@ -76,6 +76,12 @@ type config struct {
 	VTEPMAC          []string
 }
 
+type vtepManagerConfig struct {
+	vtepEndpoints []netip.Addr
+	vtepCIDRs     []netip.Prefix
+	vtepMACs      []mac.MAC
+}
+
 func (r config) Flags(flags *pflag.FlagSet) {
 	flags.Duration("vtep-sync-interval", r.VTEPSyncInterval, "Interval for VTEP sync")
 	flags.StringSlice("vtep-endpoint", r.VTEPEndpoint, "List of VTEP IP addresses")

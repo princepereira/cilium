@@ -232,12 +232,12 @@ func compile(ctx context.Context, logger *slog.Logger, prog *progInfo, dir *dire
 	// Cmd.ProcessState is populated by Cmd.Wait(). Cmd.Run() bails out if
 	// Cmd.Start() fails, which will leave Cmd.ProcessState nil. Only log peak
 	// RSS if the compilation succeeded, which will be the majority of cases.
-	if usage, ok := compileCmd.ProcessState.SysUsage().(*syscall.Rusage); ok {
+	if rss, ok := peakRSS(compileCmd.ProcessState); ok {
 		logger.Debug(
 			"Compilation had peak RSS",
 			logfields.CompilerPID, compileCmd.Process.Pid,
 			logfields.Output, output.Name(),
-			logfields.RssBytes, usage.Maxrss,
+			logfields.RssBytes, rss,
 		)
 	}
 

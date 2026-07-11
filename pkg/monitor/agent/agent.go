@@ -11,10 +11,10 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"syscall"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/perf"
-	"golang.org/x/sys/unix"
 
 	"github.com/cilium/cilium/api/v1/models"
 	oldBPF "github.com/cilium/cilium/pkg/bpf"
@@ -360,7 +360,7 @@ func (a *agent) handleEvents(stopCtx context.Context) {
 					logfields.Error, err,
 					logfields.StartTime, tNow,
 				)
-				if errors.Is(err, unix.EBADFD) {
+				if errors.Is(err, syscall.EBADFD) {
 					return
 				}
 			}

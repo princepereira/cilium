@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Authors of Cilium
 
+//go:build linux
+
 // attachCgroup and detachCgroup have to deal with two different kernel APIs:
 //
 // bpf_link (available with kernel version >= 5.7): in order for the program<->cgroup

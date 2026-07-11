@@ -13,10 +13,10 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/google/renameio/v2"
 	"github.com/vishvananda/netlink"
-	"golang.org/x/sys/unix"
 
 	"github.com/cilium/cilium/api/v1/models"
 	"github.com/cilium/cilium/pkg/bpf"
@@ -997,9 +997,9 @@ func (e *Endpoint) deletePolicyKey(keyToDelete policy.Key) bool {
 	// is better to not error out if somebody else has deleted the map entry in the
 	// meanwhile.
 	err := e.policyMap.DeleteKey(policymapKey)
-	var errno unix.Errno
+	var errno syscall.Errno
 	errors.As(err, &errno)
-	if err != nil && errno != unix.ENOENT {
+	if err != nil && errno != syscall.ENOENT {
 		e.getLogger().Error(
 			"Failed to delete PolicyMap key",
 			logfields.Error, err,
@@ -1321,9 +1321,9 @@ func (e *Endpoint) endpointPolicyLockdown() error {
 		pmKey := policymap.NewKeyFromPolicyKey(k)
 		if _, ok := denyMap[pmKey]; !ok {
 			err := e.policyMap.DeleteKey(pmKey)
-			var errno unix.Errno
+			var errno syscall.Errno
 			errors.As(err, &errno)
-			if err != nil && errno != unix.ENOENT {
+			if err != nil && errno != syscall.ENOENT {
 				return fmt.Errorf("failed to delete policy key (%v) during lockdown: %w", pmKey, err)
 			}
 		}

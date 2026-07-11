@@ -17,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"syscall"
 
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/job"
@@ -24,7 +25,6 @@ import (
 	"github.com/go-openapi/strfmt"
 	"github.com/vishvananda/netlink"
 	"go4.org/netipx"
-	"golang.org/x/sys/unix"
 	"golang.zx2c4.com/wireguard/wgctrl"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	k8sLabels "k8s.io/apimachinery/pkg/labels"
@@ -283,8 +283,8 @@ func (a *Agent) init() error {
 	}
 
 	err = netlink.LinkAdd(link)
-	if err != nil && !errors.Is(err, unix.EEXIST) {
-		if !errors.Is(err, unix.EOPNOTSUPP) {
+	if err != nil && !errors.Is(err, syscall.EEXIST) {
+		if !errors.Is(err, syscall.EOPNOTSUPP) {
 			return fmt.Errorf("failed to add WireGuard device: %w", err)
 		}
 
