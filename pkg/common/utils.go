@@ -69,7 +69,7 @@ func goArray2C(array []byte, space bool) string {
 
 // RequireRootPrivilege checks if the user running cmd is root. If not, it exits the program
 func RequireRootPrivilege(cmd string) {
-	if os.Getuid() != 0 {
+	if !hasRootPrivilege() {
 		fmt.Fprintf(os.Stderr, "Please run %q command(s) with root privileges.\n", cmd)
 		os.Exit(1)
 	}

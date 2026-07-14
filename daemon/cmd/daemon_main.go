@@ -15,7 +15,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cilium/ebpf/rlimit"
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/job"
 	"github.com/cilium/statedb"
@@ -25,7 +24,6 @@ import (
 	"github.com/cilium/cilium/daemon/cmd/legacy"
 	"github.com/cilium/cilium/daemon/infraendpoints"
 	"github.com/cilium/cilium/pkg/bpf"
-	"github.com/cilium/cilium/pkg/cgroups"
 	"github.com/cilium/cilium/pkg/common"
 	ipsec "github.com/cilium/cilium/pkg/datapath/linux/ipsec/types"
 	"github.com/cilium/cilium/pkg/datapath/linux/probes"
@@ -958,9 +956,7 @@ func initEnv(logger *slog.Logger, vp *viper.Viper) {
 	}
 
 	// set rlimit Memlock to INFINITY before creating any bpf resources.
-	if err := rlimit.RemoveMemlock(); err != nil {
-		logging.Fatal(scopedLog, "unable to set memory resource limits", logfields.Error, err)
-	}
+	removeMemlock(scopedLog)
 
 	globalsDir := option.Config.GetGlobalsDir()
 	if err := os.MkdirAll(globalsDir, defaults.StateDirRights); err != nil {
@@ -975,13 +971,7 @@ func initEnv(logger *slog.Logger, vp *viper.Viper) {
 			logfields.Path, option.Config.StateDir,
 		)
 	}
-	if _, err := os.Stat(option.Config.BpfDir); os.IsNotExist(err) {
-		logging.Fatal(scopedLog, "BPF template directory: NOT OK. Please run 'make install-bpf'", logfields.Error, err)
-	}
-
-	if err := probes.CreateHeaderFiles(filepath.Join(option.Config.BpfDir, "include/bpf"), probes.ExecuteHeaderProbes(scopedLog)); err != nil {
-		logging.Fatal(scopedLog, "failed to create header files with feature macros", logfields.Error, err)
-	}
+	checkBPFTemplates(scopedLog)
 
 	if err := pidfile.Write(defaults.PidFilePath); err != nil {
 		logging.Fatal(scopedLog, "Failed to create Pidfile",
@@ -1021,8 +1011,7 @@ func initEnv(logger *slog.Logger, vp *viper.Viper) {
 	// the path to an already mounted filesystem instead. This is
 	// useful if the daemon is being round inside a namespace and the
 	// BPF filesystem is mapped into the slave namespace.
-	bpf.CheckOrMountFS(logger, option.Config.BPFRoot)
-	cgroups.CheckOrMountCgrpFS(logger, option.Config.CGroupRoot)
+	mountFilesystems(logger)
 
 	option.Config.Opts.SetBool(option.Debug, debugDatapath)
 	option.Config.Opts.SetBool(option.DebugLB, debugDatapath)

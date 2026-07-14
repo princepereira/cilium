@@ -19,18 +19,29 @@ import (
 	"github.com/cilium/cilium/daemon/healthz"
 	"github.com/cilium/cilium/daemon/restapi"
 	"github.com/cilium/cilium/pkg/api"
+	cmtypes "github.com/cilium/cilium/pkg/clustermesh/types"
+	linuxdatapath "github.com/cilium/cilium/pkg/datapath/linux"
+	datapathTables "github.com/cilium/cilium/pkg/datapath/tables"
 	"github.com/cilium/cilium/pkg/defaults"
 	"github.com/cilium/cilium/pkg/dial"
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
 	k8sSynced "github.com/cilium/cilium/pkg/k8s/synced"
+	k8sTables "github.com/cilium/cilium/pkg/k8s/tables"
+	k8s "github.com/cilium/cilium/pkg/k8s"
 	"github.com/cilium/cilium/pkg/k8s/watchers"
 	"github.com/cilium/cilium/pkg/k8s/watchers/resources"
+	"github.com/cilium/cilium/pkg/kpr"
 	"github.com/cilium/cilium/pkg/kvstore"
 	loadbalancer_cell "github.com/cilium/cilium/pkg/loadbalancer/cell"
+	lbipamconfig "github.com/cilium/cilium/pkg/lbipamconfig"
+	"github.com/cilium/cilium/pkg/maglev"
+	nodeipamconfig "github.com/cilium/cilium/pkg/nodeipamconfig"
 	"github.com/cilium/cilium/pkg/logging/logfields"
+	"github.com/cilium/cilium/pkg/node"
 	nodeManager "github.com/cilium/cilium/pkg/node/manager"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/pprof"
+	"github.com/cilium/cilium/pkg/source"
 )
 
 var (
@@ -49,6 +60,45 @@ var (
 		"windows-infra",
 		"Minimal Windows agent infrastructure",
 
+		// Provides the global DaemonConfig to the hive so that cells such as
+		// the Kubernetes client can depend on the agent configuration.
+		cell.Provide(func() *option.DaemonConfig { return option.Config }),
+
+		// Minimal stub status collector for the health endpoints.
+		cell.Provide(newWindowsStatusCollector),
+
+		// Kube-proxy replacement config (needed by the health endpoints).
+		kpr.Cell,
+
+		// Local node store with a no-op synchronizer for minimal bring-up.
+		cell.Provide(node.NewNopLocalNodeSynchronizer),
+		node.LocalNodeStoreCell,
+
+		// Data source priorities, required by the load-balancer writer.
+		source.Cell,
+
+		// Device, route and neighbor tables (stubbed on Windows) and the
+		// derived node-address table, required by the load-balancer writer.
+		linuxdatapath.DevicesControllerCell,
+		datapathTables.NodeAddressCell,
+
+		// StateDB tables of Kubernetes objects (pods, namespaces) reflected
+		// from the API server, required by the load-balancer reflectors.
+		k8sTables.TablesCell,
+
+		// Configuration for the k8s resource reflectors used by the
+		// load-balancer control plane.
+		cell.Config(k8s.DefaultConfig),
+		cell.Provide(k8s.DefaultServiceWatchConfig),
+
+		// LB-IPAM / Node-IPAM configuration required by the load-balancer
+		// external configuration.
+		lbipamconfig.Cell,
+		nodeipamconfig.Cell,
+
+		// Maglev table computations required by the load-balancer BPF reconciler.
+		maglev.Cell,
+
 		// Provides Clientset, API for accessing Kubernetes objects.
 		k8sClient.Cell,
 
@@ -66,6 +116,11 @@ var (
 
 		// Control-plane for configuring service load-balancing
 		loadbalancer_cell.Cell,
+
+		// Registers the clustermesh cluster identity flags (cluster-id,
+		// cluster-name, max-connected-clusters) with their defaults so that
+		// daemon config validation succeeds.
+		cell.Config(cmtypes.DefaultClusterInfo),
 
 		// Cilium REST API handlers
 		restapi.Cell,

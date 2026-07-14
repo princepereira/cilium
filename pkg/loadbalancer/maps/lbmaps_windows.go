@@ -6,6 +6,7 @@
 package maps
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -23,6 +24,21 @@ const (
 	windowsAFInet  uint16 = 2  // AF_INET
 	windowsAFInet6 uint16 = 23 // AF_INET6
 )
+
+// hresultAlreadyExists is the HRESULT wrapping the Win32 ERROR_ALREADY_EXISTS
+// (0x800700B7). The CNC "Create" APIs return it when the object already exists.
+const hresultAlreadyExists cncapi.HResult = -2147024713 // 0x800700B7
+
+// ignoreAlreadyExists swallows an ERROR_ALREADY_EXISTS HRESULT so that the CNC
+// "Create" APIs behave as idempotent upserts, matching the semantics of the
+// Linux BPF map updates the load-balancer reconciler expects.
+func ignoreAlreadyExists(err error) error {
+	var hrErr *cncapi.HResultError
+	if errors.As(err, &hrErr) && hrErr.Code == hresultAlreadyExists {
+		return nil
+	}
+	return err
+}
 
 // newLBMaps constructs the load-balancer "maps" implementation for Windows.
 //
@@ -120,6 +136,16 @@ func frontendInfo(key ServiceKey) cncapi.FrontendInfo {
 	}
 }
 
+// isWildcardService reports whether the service key is the port-0 / proto-ANY
+// wildcard master entry that the load-balancer reconciler programs for the BPF
+// datapath (a catch-all so any-port traffic to a LB/ClusterIP address matches a
+// service entry). The CNC datapath has no notion of such catch-all entries and
+// rejects them with E_INVALIDARG, so they are kept only in the in-memory
+// bookkeeping and never pushed through cncapi.dll.
+func isWildcardService(key ServiceKey) bool {
+	return key.GetPort() == 0 && key.GetProtocol() == 0
+}
+
 func backendInfo(key BackendKey, value BackendValue) cncapi.BackendInfo {
 	return cncapi.BackendInfo{
 		BackendID: uint32(key.GetID()),
@@ -133,7 +159,7 @@ func backendInfo(key BackendKey, value BackendValue) cncapi.BackendInfo {
 // slots only update the in-memory bookkeeping (backend membership is programmed
 // through UpdateBackend / the CNC backend APIs).
 func (c *CNCLBMaps) UpdateService(key ServiceKey, value ServiceValue) error {
-	if c.client != nil && key.GetBackendSlot() == 0 {
+	if c.client != nil && key.GetBackendSlot() == 0 && !isWildcardService(key) {
 		serviceID := uint16(value.GetRevNat())
 		info := &cncapi.LoadBalancerInfo{
 			ServiceType:  cncapi.ServiceTypeClusterIP,
@@ -141,7 +167,9 @@ func (c *CNCLBMaps) UpdateService(key ServiceKey, value ServiceValue) error {
 			ServiceFlags: cncapi.ServiceFlags(value.GetFlags()),
 		}
 		if err := c.client.CreateLoadBalancerService(serviceID, info); err != nil {
-			return fmt.Errorf("CncCreateLoadBalancerService: %w", err)
+			if err := ignoreAlreadyExists(err); err != nil {
+				return fmt.Errorf("CncCreateLoadBalancerService: %w", err)
+			}
 		}
 		c.serviceIDs.Store(frontendID(key), serviceID)
 	}
@@ -150,7 +178,7 @@ func (c *CNCLBMaps) UpdateService(key ServiceKey, value ServiceValue) error {
 
 // DeleteService implements [serviceMaps].
 func (c *CNCLBMaps) DeleteService(key ServiceKey) error {
-	if c.client != nil && key.GetBackendSlot() == 0 {
+	if c.client != nil && key.GetBackendSlot() == 0 && !isWildcardService(key) {
 		if serviceID, ok := c.serviceIDs.Load(frontendID(key)); ok {
 			info := &cncapi.LoadBalancerInfo{
 				ServiceType: cncapi.ServiceTypeClusterIP,
@@ -171,7 +199,9 @@ func (c *CNCLBMaps) UpdateBackend(key BackendKey, value BackendValue) error {
 	if c.client != nil {
 		be := backendInfo(key, value)
 		if err := c.client.CreateLoadBalancerBackends([]cncapi.BackendInfo{be}); err != nil {
-			return fmt.Errorf("CncCreateLoadBalancerBackends: %w", err)
+			if err := ignoreAlreadyExists(err); err != nil {
+				return fmt.Errorf("CncCreateLoadBalancerBackends: %w", err)
+			}
 		}
 	}
 	return c.FakeLBMaps.UpdateBackend(key, value)
