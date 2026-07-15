@@ -29,12 +29,33 @@ const (
 // (0x800700B7). The CNC "Create" APIs return it when the object already exists.
 const hresultAlreadyExists cncapi.HResult = -2147024713 // 0x800700B7
 
+// hresultNotFound / hresultFileNotFound are the HRESULTs wrapping the Win32
+// ERROR_NOT_FOUND (0x80070490) and ERROR_FILE_NOT_FOUND (0x80070002). The CNC
+// "Delete" APIs return one of these when the object is already gone.
+const (
+	hresultNotFound     cncapi.HResult = -2147023728 // 0x80070490 ERROR_NOT_FOUND
+	hresultFileNotFound cncapi.HResult = -2147024894 // 0x80070002 ERROR_FILE_NOT_FOUND
+)
+
 // ignoreAlreadyExists swallows an ERROR_ALREADY_EXISTS HRESULT so that the CNC
 // "Create" APIs behave as idempotent upserts, matching the semantics of the
 // Linux BPF map updates the load-balancer reconciler expects.
 func ignoreAlreadyExists(err error) error {
 	var hrErr *cncapi.HResultError
 	if errors.As(err, &hrErr) && hrErr.Code == hresultAlreadyExists {
+		return nil
+	}
+	return err
+}
+
+// ignoreNotFound swallows an ERROR_NOT_FOUND / ERROR_FILE_NOT_FOUND HRESULT so
+// that the CNC "Delete" APIs behave as idempotent deletes, matching the Linux
+// BPF map semantics where deleting a missing key is not an error. Without this
+// the load-balancer reconciler would retry a delete of an already-gone entry
+// forever.
+func ignoreNotFound(err error) error {
+	var hrErr *cncapi.HResultError
+	if errors.As(err, &hrErr) && (hrErr.Code == hresultNotFound || hrErr.Code == hresultFileNotFound) {
 		return nil
 	}
 	return err
@@ -185,7 +206,9 @@ func (c *CNCLBMaps) DeleteService(key ServiceKey) error {
 				Frontend:    frontendInfo(key),
 			}
 			if err := c.client.DeleteLoadBalancerService(serviceID, info); err != nil {
-				return fmt.Errorf("CncDeleteLoadBalancerService: %w", err)
+				if err := ignoreNotFound(err); err != nil {
+					return fmt.Errorf("CncDeleteLoadBalancerService: %w", err)
+				}
 			}
 			c.serviceIDs.Delete(frontendID(key))
 		}
@@ -217,7 +240,9 @@ func (c *CNCLBMaps) DeleteBackend(key BackendKey) error {
 			}
 		}
 		if err := c.client.DeleteLoadBalancerBackends(af, []uint32{uint32(key.GetID())}); err != nil {
-			return fmt.Errorf("CncDeleteLoadBalancerBackends: %w", err)
+			if err := ignoreNotFound(err); err != nil {
+				return fmt.Errorf("CncDeleteLoadBalancerBackends: %w", err)
+			}
 		}
 	}
 	return c.FakeLBMaps.DeleteBackend(key)
