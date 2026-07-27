@@ -14,7 +14,6 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/cilium/cilium/pkg/datapath/iptables"
-	linuxdatapath "github.com/cilium/cilium/pkg/datapath/linux"
 	"github.com/cilium/cilium/pkg/datapath/linux/route/reconciler"
 	"github.com/cilium/cilium/pkg/datapath/tables"
 	"github.com/cilium/cilium/pkg/envoy"
@@ -93,7 +92,7 @@ func newProxy(params proxyParams) (*Proxy, error) {
 	if !params.DaemonConfig.DryMode {
 		params.Lifecycle.Append(cell.Hook{
 			OnStart: func(cell.HookContext) error {
-				if err := linuxdatapath.NodeEnsureLocalRoutingRule(); err != nil {
+				if err := nodeEnsureLocalRoutingRule(); err != nil {
 					return fmt.Errorf("failed to ensure local routing rule: %w", err)
 				}
 				return nil
