@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/cilium/cilium/pkg/datapath/linux/ipsec"
 	"github.com/cilium/cilium/pkg/datapath/linux/probes"
 	datapathTables "github.com/cilium/cilium/pkg/datapath/tables"
 	"github.com/cilium/cilium/pkg/endpoint/regeneration"
@@ -38,7 +37,7 @@ func initAndValidateDaemonConfig(params daemonConfigParams) error {
 	}
 
 	if params.IPSecConfig.Enabled() && params.DaemonConfig.TunnelingEnabled() {
-		if err := ipsec.ProbeXfrmStateOutputMask(); err != nil {
+		if err := probeXfrmStateOutputMask(); err != nil {
 			return fmt.Errorf("IPSec with tunneling requires support for xfrm state output masks (Linux 4.19 or later): %w", err)
 		}
 	}
