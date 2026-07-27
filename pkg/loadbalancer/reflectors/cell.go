@@ -4,13 +4,7 @@
 package reflectors
 
 import (
-	"errors"
-	"sync"
-
 	"github.com/cilium/hive/cell"
-	"golang.org/x/sys/unix"
-
-	"github.com/cilium/cilium/pkg/netns"
 )
 
 var Cell = cell.Module(
@@ -33,9 +27,3 @@ var Cell = cell.Module(
 
 type HaveNetNSCookieSupport func() bool
 
-func NetnsCookieSupportFunc() HaveNetNSCookieSupport {
-	return sync.OnceValue(func() bool {
-		_, err := netns.GetNetNSCookie()
-		return !errors.Is(err, unix.ENOPROTOOPT)
-	})
-}

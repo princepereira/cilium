@@ -56,7 +56,7 @@ func AddAltName(linkName, altName string) error {
 		return err
 	}
 
-	return netlink.LinkAddAltName(link, altName)
+	return addAltName(link, altName)
 }
 
 func GetHardwareAddr(ifName string) (mac.MAC, error) {
