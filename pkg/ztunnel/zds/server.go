@@ -75,7 +75,7 @@ func (zc *ztunnelConn) readMsg(msg proto.Message) error {
 func (zc *ztunnelConn) sendMsg(req *pb.WorkloadRequest, ns *netns.NetNS) error {
 	var rights []byte
 	if ns != nil {
-		rights = unix.UnixRights(ns.FD())
+		rights = socketControlRights(ns.FD())
 		defer ns.Close()
 	}
 	data, err := proto.Marshal(req)

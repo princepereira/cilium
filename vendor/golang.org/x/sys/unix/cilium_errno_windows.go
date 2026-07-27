@@ -24,6 +24,8 @@ const (
 	EINVAL  = syscall.Errno(0x16)
 	EPERM   = syscall.Errno(0x1)
 	ENOLINK = syscall.Errno(0x43)
+	ESRCH   = syscall.Errno(0x3)
+	EEXIST  = syscall.Errno(0x11)
 )
 
 const (
@@ -31,4 +33,8 @@ const (
 
 	RTNH_F_DEAD     = 0x1
 	RTNH_F_LINKDOWN = 0x10
+
+	RT_TABLE_MAIN    = 0xfe
+	RTN_UNREACHABLE  = 0x7
+	MSG_TRUNC        = 0x20
 )
