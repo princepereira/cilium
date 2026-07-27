@@ -37,4 +37,5 @@ const (
 	RT_TABLE_MAIN    = 0xfe
 	RTN_UNREACHABLE  = 0x7
 	MSG_TRUNC        = 0x20
+	IFF_SLAVE        = 0x800
 )
