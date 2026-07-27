@@ -26,6 +26,9 @@ const (
 	ENOLINK = syscall.Errno(0x43)
 	ESRCH   = syscall.Errno(0x3)
 	EEXIST  = syscall.Errno(0x11)
+	E2BIG      = syscall.Errno(0x7)
+	EOPNOTSUPP = syscall.Errno(0x5f)
+	EADDRNOTAVAIL = syscall.Errno(0x63)
 )
 
 const (
@@ -38,4 +41,7 @@ const (
 	RTN_UNREACHABLE  = 0x7
 	MSG_TRUNC        = 0x20
 	IFF_SLAVE        = 0x800
+
+	IPPROTO_TCP = 0x6
+	IPPROTO_UDP = 0x11
 )
