@@ -21,3 +21,7 @@ const (
 	EPERM   = syscall.Errno(0x1)
 	ENOLINK = syscall.Errno(0x43)
 )
+
+const (
+	IFNAMSIZ = 16
+)
