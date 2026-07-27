@@ -13,6 +13,11 @@ package unix
 import "syscall"
 
 const (
-	ENOSPC = syscall.Errno(0x1c)
-	ENOENT = syscall.Errno(0x2)
+	ENOSPC  = syscall.Errno(0x1c)
+	ENOENT  = syscall.Errno(0x2)
+	EBADFD  = syscall.Errno(0x4d)
+	EBADF   = syscall.Errno(0x9)
+	EINVAL  = syscall.Errno(0x16)
+	EPERM   = syscall.Errno(0x1)
+	ENOLINK = syscall.Errno(0x43)
 )
