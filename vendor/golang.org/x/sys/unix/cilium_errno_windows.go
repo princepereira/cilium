@@ -12,6 +12,10 @@ package unix
 
 import "syscall"
 
+// Errno mirrors syscall.Errno so that cross-platform code referencing
+// unix.Errno compiles on Windows.
+type Errno = syscall.Errno
+
 const (
 	ENOSPC  = syscall.Errno(0x1c)
 	ENOENT  = syscall.Errno(0x2)
@@ -24,4 +28,7 @@ const (
 
 const (
 	IFNAMSIZ = 16
+
+	RTNH_F_DEAD     = 0x1
+	RTNH_F_LINKDOWN = 0x10
 )
