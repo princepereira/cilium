@@ -79,7 +79,7 @@ var defaultConfig = types.Config{
 // Cell provides a disabled bandwidth Manager on non-Linux platforms.
 var Cell = cell.Module(
 	"bandwidth-manager",
-	"Bandwidth Manager for EDT-based pacing (disabled on this platform)",
+	"Bandwidth Manager for EDT-based pacing - disabled on this platform",
 
 	cell.Config(defaultConfig),
 	cell.Provide(newBandwidthManager),
