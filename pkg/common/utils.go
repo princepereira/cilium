@@ -5,7 +5,6 @@ package common
 
 import (
 	"fmt"
-	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -67,13 +66,9 @@ func goArray2C(array []byte, space bool) string {
 	return ret
 }
 
-// RequireRootPrivilege checks if the user running cmd is root. If not, it exits the program
-func RequireRootPrivilege(cmd string) {
-	if os.Getuid() != 0 {
-		fmt.Fprintf(os.Stderr, "Please run %q command(s) with root privileges.\n", cmd)
-		os.Exit(1)
-	}
-}
+// RequireRootPrivilege checks if the user running cmd is root. If not, it exits
+// the program. Its implementation is platform-specific (see utils_linux.go and
+// utils_windows.go).
 
 func MergeChannels[T any](chans ...<-chan T) <-chan T {
 	out := make(chan T)

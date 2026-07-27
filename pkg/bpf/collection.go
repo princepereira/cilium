@@ -177,7 +177,7 @@ func (co *CollectionOptions) populateMapReplacements() {
 	}
 
 	for n, m := range co.MapReplacements {
-		co.CollectionOptions.MapReplacements[n] = m.m
+		co.CollectionOptions.MapReplacements[n] = m.ebpfMap()
 	}
 }
 

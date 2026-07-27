@@ -61,7 +61,7 @@ func NewMapOps[KV KeyValue](m *Map) reconciler.Operations[KV] {
 	return ops
 }
 
-func (ops *mapOps[KV]) withMap(do func(m *ebpf.Map) error) error {
+func (ops *mapOps[KV]) withMap(do func(m *memMap) error) error {
 	ops.m.lock.RLock()
 	defer ops.m.lock.RUnlock()
 	if ops.m.m == nil {
@@ -72,7 +72,7 @@ func (ops *mapOps[KV]) withMap(do func(m *ebpf.Map) error) error {
 
 // Delete implements reconciler.Operations.
 func (ops *mapOps[KV]) Delete(ctx context.Context, txn statedb.ReadTxn, _ statedb.Revision, entry KV) error {
-	return ops.withMap(func(m *ebpf.Map) error {
+	return ops.withMap(func(m *memMap) error {
 		err := ops.m.m.Delete(entry.BinaryKey())
 		if errors.Is(err, ebpf.ErrKeyNotExist) {
 			// Silently ignore deletions of non-existing keys.
@@ -83,7 +83,7 @@ func (ops *mapOps[KV]) Delete(ctx context.Context, txn statedb.ReadTxn, _ stated
 }
 
 type keyIterator struct {
-	m          *ebpf.Map
+	m          *memMap
 	nextKey    []byte
 	err        error
 	maxEntries uint32
@@ -118,7 +118,7 @@ func (ops *mapOps[KV]) toStringKey(kv KV) string {
 
 // Prune BPF map values that do not exist in the table.
 func (ops *mapOps[KV]) Prune(ctx context.Context, txn statedb.ReadTxn, objs iter.Seq2[KV, statedb.Revision]) error {
-	return ops.withMap(func(m *ebpf.Map) error {
+	return ops.withMap(func(m *memMap) error {
 		desiredKeys := sets.New[string]()
 		for obj := range objs {
 			desiredKeys.Insert(ops.toStringKey(obj))
@@ -148,7 +148,7 @@ func (ops *mapOps[KV]) Prune(ctx context.Context, txn statedb.ReadTxn, objs iter
 
 // Update the BPF map value to match with the object in the desired state table.
 func (ops *mapOps[KV]) Update(ctx context.Context, txn statedb.ReadTxn, _ statedb.Revision, entry KV) error {
-	return ops.withMap(func(m *ebpf.Map) error {
+	return ops.withMap(func(m *memMap) error {
 		return m.Put(entry.BinaryKey(), entry.BinaryValue())
 	})
 }

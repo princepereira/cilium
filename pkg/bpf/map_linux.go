@@ -465,6 +465,11 @@ func (m *Map) FD() int {
 	return m.m.FD()
 }
 
+// ebpfMap returns the underlying cilium/ebpf map handle.
+func (m *Map) ebpfMap() *ebpf.Map {
+	return m.m
+}
+
 // Name returns the basename of this map.
 func (m *Map) Name() string {
 	return m.name

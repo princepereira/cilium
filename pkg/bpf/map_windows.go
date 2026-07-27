@@ -74,7 +74,7 @@ type cacheEntry struct {
 
 type Map struct {
 	Logger *slog.Logger
-	m      *ebpf.Map
+	m      *memMap
 	// spec will be nil after the map has been created
 	spec *ebpf.MapSpec
 
@@ -465,6 +465,12 @@ func (m *Map) FD() int {
 	return m.m.FD()
 }
 
+// ebpfMap returns nil on non-Linux platforms: there is no cilium/ebpf map
+// handle backing the in-memory map, so no real map replacement is possible.
+func (m *Map) ebpfMap() *ebpf.Map {
+	return nil
+}
+
 // Name returns the basename of this map.
 func (m *Map) Name() string {
 	return m.name
@@ -486,6 +492,7 @@ func (m *Map) Unpin() error {
 		return err
 	}
 
+	removePinnedMemMap(path)
 	return os.RemoveAll(path)
 }
 
@@ -513,10 +520,7 @@ func OpenMap(pinPath string, key MapKey, value MapValue) (*Map, error) {
 		return nil, fmt.Errorf("pinPath must be absolute: %s", pinPath)
 	}
 
-	em, err := ebpf.LoadPinnedMap(pinPath, nil)
-	if err != nil {
-		return nil, err
-	}
+	em := loadMemMap(pinPath, nil)
 
 	// slogloggercheck: it's safe to use the default logger here as it has been initialized by the program up to this point.
 	defaultSlogLogger := logging.DefaultSlogLogger
@@ -568,6 +572,7 @@ func (m *Map) Recreate() error {
 	if err := os.Remove(m.path); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("removing pinned map %s: %w", m.name, err)
 	}
+	removePinnedMemMap(m.path)
 
 	m.Logger.Info(
 		"Removed map pin, recreating and re-pinning map",
@@ -639,10 +644,7 @@ func (m *Map) openOrCreate(pin bool) error {
 		m.spec.Pinning = ebpf.PinByName
 	}
 
-	em, err := OpenOrCreateMap(m.Logger, m.spec, path.Dir(m.path))
-	if err != nil {
-		return err
-	}
+	em := openOrCreateMemMap(m.path, m.spec, pin)
 
 	// Consume the MapSpec.
 	m.spec = nil
@@ -677,10 +679,7 @@ func (m *Map) open() error {
 		return err
 	}
 
-	em, err := ebpf.LoadPinnedMap(m.path, nil)
-	if err != nil {
-		return fmt.Errorf("loading pinned map %s: %w", m.path, err)
-	}
+	em := loadMemMap(m.path, m.spec)
 
 	m.m = em
 
@@ -1665,7 +1664,10 @@ func (m *Map) exist() (bool, error) {
 		return false, err
 	}
 
-	if _, err := os.Stat(path); err == nil {
+	if m.m != nil {
+		return true, nil
+	}
+	if _, ok := lookupPinnedMemMap(path); ok {
 		return true, nil
 	}
 

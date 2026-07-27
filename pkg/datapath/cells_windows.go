@@ -30,6 +30,7 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/xdp"
 	"github.com/cilium/cilium/pkg/mtu"
 	monitorAgent "github.com/cilium/cilium/pkg/monitor/agent"
+	"github.com/cilium/cilium/pkg/maps/lxcmap"
 	"github.com/cilium/cilium/pkg/maps/subnet"
 	"github.com/cilium/cilium/pkg/node"
 	fakenode "github.com/cilium/cilium/pkg/node/fake"
@@ -120,6 +121,10 @@ var Cell = cell.Module(
 
 	// Subnet table (BPF map and reconciler are Linux-only).
 	subnet.Cell,
+
+	// Provides the lxc / endpoints map. Backed by the in-memory BPF map
+	// implementation on non-Linux platforms (see pkg/bpf).
+	lxcmap.Cell,
 
 	// Provide empty devices and routes tables. On Linux the devices controller
 	// populates these from netlink; on other platforms no device or route

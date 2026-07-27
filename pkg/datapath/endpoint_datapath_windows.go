@@ -15,7 +15,6 @@ import (
 	fakeendpoint "github.com/cilium/cilium/pkg/endpoint/fake"
 	endpointTypes "github.com/cilium/cilium/pkg/endpoint/types"
 	"github.com/cilium/cilium/pkg/maps/ctmap"
-	"github.com/cilium/cilium/pkg/maps/lxcmap"
 	"github.com/cilium/cilium/pkg/maps/policymap"
 )
 
@@ -34,7 +33,6 @@ type endpointDatapathDepsOut struct {
 	IPTablesManager iptables.Manager
 	CTMapGC         ctmap.GCRunner
 	PolicyMapFactory policymap.Factory
-	LxcMap          lxcmap.Map
 }
 
 func newEndpointDatapathDeps() endpointDatapathDepsOut {
@@ -45,6 +43,5 @@ func newEndpointDatapathDeps() endpointDatapathDepsOut {
 		IPTablesManager: fakeiptables.NewManager(),
 		CTMapGC:         ctmap.NewFakeGCRunner(),
 		PolicyMapFactory: nil,
-		LxcMap:          nil,
 	}
 }

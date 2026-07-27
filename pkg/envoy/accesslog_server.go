@@ -95,7 +95,7 @@ func (s *AccessLogServer) newSocketListener() (*net.UnixListener, error) {
 	_ = os.Remove(s.socketPath)
 
 	// Create the access log listener
-	accessLogListener, err := net.ListenUnix("unixpacket", &net.UnixAddr{Name: s.socketPath, Net: "unixpacket"})
+	accessLogListener, err := net.ListenUnix(accessLogSocketNetwork, &net.UnixAddr{Name: s.socketPath, Net: accessLogSocketNetwork})
 	if err != nil {
 		return nil, fmt.Errorf("failed to open access log listen socket at %s: %w", s.socketPath, err)
 	}
