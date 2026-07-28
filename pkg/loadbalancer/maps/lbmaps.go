@@ -13,9 +13,9 @@ import (
 	"reflect"
 	"unsafe"
 
+	"github.com/cilium/cilium/pkg/bpfabi"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/hive/cell"
-	"golang.org/x/sys/unix"
 
 	"github.com/cilium/cilium/pkg/bpf"
 	"github.com/cilium/cilium/pkg/byteorder"
@@ -157,7 +157,7 @@ func NewService4Map(maxEntries int) *bpf.Map {
 		&Service4Key{},
 		&Service4Value{},
 		maxEntries,
-		unix.BPF_F_RDONLY_PROG,
+		bpfabi.RdonlyProg,
 	)
 }
 
@@ -168,7 +168,7 @@ func NewService6Map(maxEntries int) *bpf.Map {
 		&Service6Key{},
 		&Service6Value{},
 		maxEntries,
-		unix.BPF_F_RDONLY_PROG,
+		bpfabi.RdonlyProg,
 	)
 }
 
@@ -223,7 +223,7 @@ func NewAffinityMatchMap(maxEntries int) *bpf.Map {
 		&AffinityMatchKey{},
 		&AffinityMatchValue{},
 		maxEntries,
-		unix.BPF_F_RDONLY_PROG,
+		bpfabi.RdonlyProg,
 	)
 }
 
@@ -256,7 +256,7 @@ func NewSourceRange4Map(maxEntries int) *bpf.Map {
 		&SourceRangeKey4{},
 		&SourceRangeValue{},
 		maxEntries,
-		unix.BPF_F_RDONLY_PROG,
+		bpfabi.RdonlyProg,
 	)
 }
 
@@ -267,7 +267,7 @@ func NewSourceRange6Map(maxEntries int) *bpf.Map {
 		&SourceRangeKey6{},
 		&SourceRangeValue{},
 		maxEntries,
-		unix.BPF_F_RDONLY_PROG,
+		bpfabi.RdonlyProg,
 	)
 }
 
@@ -300,7 +300,7 @@ func NewMaglevOuterMap(name string, maxEntries int, innerSpec *ebpf.MapSpec) *bp
 		&MaglevOuterKey{},
 		&MaglevOuterVal{},
 		maxEntries,
-		unix.BPF_F_RDONLY_PROG,
+		bpfabi.RdonlyProg,
 		innerSpec.Copy(),
 	)
 }

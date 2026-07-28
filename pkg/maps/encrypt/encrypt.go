@@ -6,8 +6,8 @@ package encrypt
 import (
 	"fmt"
 
+	"github.com/cilium/cilium/pkg/bpfabi"
 	"github.com/cilium/hive/cell"
-	"golang.org/x/sys/unix"
 
 	"github.com/cilium/cilium/pkg/bpf"
 	ipsec "github.com/cilium/cilium/pkg/datapath/linux/ipsec/types"
@@ -63,7 +63,7 @@ func newMap(lc cell.Lifecycle, ipsecCfg ipsec.Config, dc *option.DaemonConfig) *
 		&EncryptKey{},
 		&EncryptValue{},
 		MaxEntries,
-		unix.BPF_F_RDONLY_PROG,
+		bpfabi.RdonlyProg,
 	).WithCache().WithEvents(dc.GetEventBufferConfig(MapName))
 
 	lc.Append(cell.Hook{

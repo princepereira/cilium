@@ -6,7 +6,7 @@ package fake
 import (
 	"os"
 
-	"github.com/cilium/ebpf/perf"
+	"github.com/cilium/cilium/pkg/ebpfperf"
 
 	"github.com/cilium/cilium/pkg/maps/signalmap"
 	"github.com/cilium/cilium/pkg/time"
@@ -32,13 +32,13 @@ type fakePerfReader struct {
 	closed   chan struct{}
 }
 
-func (r *fakePerfReader) Read() (perf.Record, error) {
+func (r *fakePerfReader) Read() (ebpfperf.Record, error) {
 	paused := false
 
 	for {
 		select {
 		case <-r.closed:
-			return perf.Record{}, os.ErrClosed
+			return ebpfperf.Record{}, os.ErrClosed
 		case paused = <-r.pause:
 			if paused {
 				continue
@@ -50,9 +50,9 @@ func (r *fakePerfReader) Read() (perf.Record, error) {
 			r.index = 0
 		}
 		if r.index < len(r.messages) {
-			return perf.Record{RawSample: r.messages[r.index]}, nil
+			return ebpfperf.Record{RawSample: r.messages[r.index]}, nil
 		} else {
-			return perf.Record{LostSamples: 1}, nil
+			return ebpfperf.Record{LostSamples: 1}, nil
 		}
 	}
 }

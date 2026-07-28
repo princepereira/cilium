@@ -17,12 +17,12 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"syscall"
 
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/job"
 	"github.com/cilium/statedb"
 	"github.com/vishvananda/netlink"
-	"golang.org/x/sys/unix"
 
 	"github.com/cilium/cilium/daemon/cmd/cni"
 	"github.com/cilium/cilium/pkg/backoff"
@@ -35,6 +35,7 @@ import (
 	"github.com/cilium/cilium/pkg/netns"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/pidfile"
+	"github.com/cilium/cilium/pkg/sysabi"
 	"github.com/cilium/cilium/pkg/time"
 )
 
@@ -263,7 +264,7 @@ func (emu *endpointUpdater) updateEndpoints(routeMTUs []RouteMTU) error {
 			// to do syscalls for the switching. If the netns is deleted between the time we open it and
 			// the time of calling ns.Do, we get an -EINVAL error, since the file descriptor is no longer valid.
 			// We ignore this error, since it means the netns and thus the endpoint was deleted.
-			if errors.Is(err, unix.EINVAL) {
+			if errors.Is(err, syscall.EINVAL) {
 				continue
 			}
 
@@ -304,14 +305,14 @@ func defaultRouteHook(routeMTUs []RouteMTU) error {
 
 		netlink.LinkSetMTU(link, defaultRouteMTU.DeviceMTU)
 
-		routes, err := safenetlink.RouteList(link, netlink.FAMILY_ALL)
+		routes, err := safenetlink.RouteList(link, sysabi.FamilyAll)
 		if err != nil {
 			return fmt.Errorf("netlink.RouteList failed: %w", err)
 		}
 
 		for _, rt := range routes {
 			switch rt.Family {
-			case netlink.FAMILY_V4, netlink.FAMILY_V6:
+			case sysabi.FamilyV4, sysabi.FamilyV6:
 			default:
 				continue
 			}
@@ -324,7 +325,7 @@ func defaultRouteHook(routeMTUs []RouteMTU) error {
 
 			// If the next hop is dead or next hop is carrier down, skip updating the route
 			// Attempting to do so would result in an error.
-			if rt.Flags&unix.RTNH_F_LINKDOWN != 0 || rt.Flags&unix.RTNH_F_DEAD != 0 {
+			if rt.Flags&sysabi.RTNHFLinkDown != 0 || rt.Flags&sysabi.RTNHFDead != 0 {
 				continue
 			}
 
@@ -416,9 +417,9 @@ func (emu *endpointUpdater) updateHealthEndpoint(routeMTUs []RouteMTU) error {
 func routeDstNetPrefix(rt netlink.Route) netip.Prefix {
 	var toIP netip.Addr
 	switch rt.Family {
-	case netlink.FAMILY_V4:
+	case sysabi.FamilyV4:
 		toIP, _ = netip.AddrFromSlice(rt.Dst.IP.To4())
-	case netlink.FAMILY_V6:
+	case sysabi.FamilyV6:
 		toIP, _ = netip.AddrFromSlice(rt.Dst.IP.To16())
 	}
 

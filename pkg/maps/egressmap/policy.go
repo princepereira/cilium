@@ -9,10 +9,10 @@ import (
 	"net/netip"
 	"unsafe"
 
+	"github.com/cilium/cilium/pkg/bpfabi"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/hive/cell"
 	"github.com/spf13/pflag"
-	"golang.org/x/sys/unix"
 
 	"github.com/cilium/cilium/pkg/bpf"
 	"github.com/cilium/cilium/pkg/datapath/linux/config/defines"
@@ -181,7 +181,7 @@ func createPolicyMap4(lc cell.Lifecycle, registry *metrics.Registry, cfg PolicyC
 		&EgressPolicyKey4{},
 		&EgressPolicyVal4{},
 		cfg.EgressGatewayPolicyMapMax,
-		unix.BPF_F_RDONLY_PROG,
+		bpfabi.RdonlyProg,
 	).WithPressureMetric(registry)
 
 	lc.Append(cell.Hook{
@@ -209,7 +209,7 @@ func createPolicyMap4V2(lc cell.Lifecycle, registry *metrics.Registry, cfg Polic
 		&EgressPolicyKey4{},
 		&EgressPolicyVal4V2{},
 		cfg.EgressGatewayPolicyMapMax,
-		unix.BPF_F_RDONLY_PROG,
+		bpfabi.RdonlyProg,
 	).WithPressureMetric(registry)
 
 	lc.Append(cell.Hook{
@@ -237,7 +237,7 @@ func createPolicyMap6(lc cell.Lifecycle, registry *metrics.Registry, cfg PolicyC
 		&EgressPolicyKey6{},
 		&EgressPolicyVal6{},
 		cfg.EgressGatewayPolicyMapMax,
-		unix.BPF_F_RDONLY_PROG,
+		bpfabi.RdonlyProg,
 	).WithPressureMetric(registry)
 
 	lc.Append(cell.Hook{

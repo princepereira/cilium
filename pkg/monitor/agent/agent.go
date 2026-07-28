@@ -12,9 +12,9 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/cilium/cilium/pkg/ebpfperf"
 	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/perf"
-	"golang.org/x/sys/unix"
+	"syscall"
 
 	"github.com/cilium/cilium/api/v1/models"
 	oldBPF "github.com/cilium/cilium/pkg/bpf"
@@ -77,7 +77,7 @@ type agent struct {
 	consumers map[consumer.MonitorConsumer]struct{}
 
 	events        *ebpf.Map
-	monitorEvents *perf.Reader
+	monitorEvents *ebpfperf.Reader
 }
 
 // newAgent starts a new monitor agent instance which distributes monitor events
@@ -327,7 +327,7 @@ func (a *agent) handleEvents(stopCtx context.Context) {
 	defer a.logger.Info("Stopped reading perf buffer", logfields.StartTime, tNow)
 
 	bufferSize := int(a.Pagesize * a.Npages)
-	monitorEvents, err := perf.NewReader(a.events, bufferSize)
+	monitorEvents, err := ebpfperf.NewReader(a.events, bufferSize)
 	if err != nil {
 		logging.Fatal(a.logger, "Cannot initialise BPF perf ring buffer sockets",
 			logfields.Error, err,
@@ -351,7 +351,7 @@ func (a *agent) handleEvents(stopCtx context.Context) {
 		case isCtxDone(stopCtx):
 			return
 		case err != nil:
-			if perf.IsUnknownEvent(err) {
+			if ebpfperf.IsUnknownEvent(err) {
 				a.Lock()
 				a.MonitorStatus.Unknown++
 				a.Unlock()
@@ -360,7 +360,7 @@ func (a *agent) handleEvents(stopCtx context.Context) {
 					logfields.Error, err,
 					logfields.StartTime, tNow,
 				)
-				if errors.Is(err, unix.EBADFD) {
+				if errors.Is(err, syscall.EBADFD) {
 					return
 				}
 			}
@@ -373,7 +373,7 @@ func (a *agent) handleEvents(stopCtx context.Context) {
 
 // processPerfRecord processes a record from the datapath and sends it to any
 // registered subscribers
-func (a *agent) processPerfRecord(record perf.Record) {
+func (a *agent) processPerfRecord(record ebpfperf.Record) {
 	a.Lock()
 	defer a.Unlock()
 

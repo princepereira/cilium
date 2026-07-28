@@ -19,12 +19,12 @@ import (
 	"github.com/cilium/hive/cell"
 	"github.com/containernetworking/cni/libcni"
 	"github.com/fsnotify/fsnotify"
-	"github.com/google/renameio/v2"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 
 	"github.com/cilium/cilium/api/v1/models"
 	"github.com/cilium/cilium/daemon/cmd/cni/config"
+	"github.com/cilium/cilium/pkg/atomicfile"
 	"github.com/cilium/cilium/pkg/controller"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/time"
@@ -350,7 +350,7 @@ func (c *cniConfigManager) setupCNIConfFile() (err error) {
 			)
 		}
 		// commit CNI config
-		if err := renameio.WriteFile(dest, contents, 0600); err != nil {
+		if err := atomicfile.WriteFile(dest, contents, 0600); err != nil {
 			return fmt.Errorf("failed to write CNI configuration file at %s: %w", dest, err)
 		}
 		c.logger.Info(

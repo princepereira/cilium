@@ -9,12 +9,16 @@ import (
 	"slices"
 
 	"github.com/vishvananda/netlink"
-	"golang.org/x/sys/unix"
 
 	"github.com/cilium/cilium/pkg/datapath/linux/sysctl"
 )
 
 const (
+	// linuxIfNameSize is the Linux IFNAMSIZ (maximum interface name length
+	// including the trailing NUL). Defined locally so this file compiles on
+	// platforms where golang.org/x/sys/unix is unavailable (e.g. Windows).
+	linuxIfNameSize = 16
+
 	// HostInterfacePrefix is the Host interface prefix.
 	HostInterfacePrefix = "lxc"
 	// temporaryInterfacePrefix is the temporary interface prefix while setting up libNetwork interface.
@@ -40,7 +44,7 @@ func CniAltName(ifName string) string {
 func Endpoint2IfName(endpointID string) string {
 	sum := fmt.Sprintf("%x", sha256.Sum256([]byte(endpointID)))
 	// returned string length should be < unix.IFNAMSIZ
-	truncateLength := uint(unix.IFNAMSIZ - len(temporaryInterfacePrefix) - 1)
+	truncateLength := uint(linuxIfNameSize - len(temporaryInterfacePrefix) - 1)
 	return HostInterfacePrefix + truncateString(sum, truncateLength)
 }
 

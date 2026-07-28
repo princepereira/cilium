@@ -16,10 +16,10 @@ import (
 
 	"github.com/cilium/hive/script"
 	"github.com/cilium/stream"
-	"github.com/google/renameio/v2"
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/cilium/cilium/pkg/allocator"
+	"github.com/cilium/cilium/pkg/atomicfile"
 	"github.com/cilium/cilium/pkg/controller"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/identity/key"
@@ -650,7 +650,7 @@ func (m *CachingIdentityAllocator) checkpoint(ctx context.Context) error {
 	ids = m.localNodeIdentities.checkpoint(ids)
 
 	// use renameio to prevent partial writes
-	out, err := renameio.NewPendingFile(m.checkpointPath, renameio.WithExistingPermissions(), renameio.WithPermissions(0o600))
+	out, err := atomicfile.NewPendingFile(m.checkpointPath, atomicfile.WithExistingPermissions(), atomicfile.WithPermissions(0o600))
 	if err != nil {
 		scopedLog.Error("failed to prepare checkpoint file", logfields.Error, err)
 		return err

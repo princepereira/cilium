@@ -115,6 +115,30 @@ To extend map behavior on Windows, add the required method to `memMap` in
    interface and startup completes.
 8. Envoy access-log socket used `unixpacket` — fatal on Windows; use `unix`.
 
+### Vendor-free platform constants & wrappers (build fix)
+
+`golang.org/x/sys/unix` is empty on Windows and `vendor/` must **never** be
+edited (a `go mod vendor` prunes any hand-added shim files, breaking the
+build). Instead, Cilium-owned, build-tagged leaf packages provide the handful
+of Linux ABI values and helpers that shared code needs:
+
+| Package | Purpose | Linux impl | Non-Linux impl |
+|---------|---------|-----------|----------------|
+| `pkg/bpfabi` | BPF map-creation flags (`NoPrealloc`, `NoCommonLRU`, `RdonlyProg`) | alias `unix.BPF_F_*` | literals (`0x1/0x2/0x80`) |
+| `pkg/sysabi` | netlink families, route/scope/msg flags (`FamilyV4/V6/All`, `RTTableMain`, `RTNUnreachable`, `ScopeLink`, `RTNHF*`, `MSGTrunc`, `IFFSlave`) | alias `netlink.*` / `unix.*` | literals |
+| `pkg/atomicfile` | atomic file replace (API-compatible subset of `renameio`) | delegates to `github.com/google/renameio/v2` | portable temp-file + `os.Rename` |
+| `pkg/ebpfperf` | perf ring-buffer reader (`Reader`, `Record`, `NewReader`, `IsUnknownEvent`) | aliases `github.com/cilium/ebpf/perf` | no-op reader that parks until closed |
+
+Errnos and `IPPROTO_*` are taken from the standard `syscall` package (which
+defines them on Windows too), so `unix.ENOENT` → `syscall.ENOENT`, etc.
+`pkg/bpfabi` is deliberately a leaf (it must not import `pkg/bpf`, which
+transitively imports `pkg/datapath/maps`, to avoid an import cycle).
+
+**Rule of thumb:** if a shared/non-linux file references `unix.X`,
+`netlink.FAMILY_*`/`SCOPE_*`, `renameio.*`, or `perf.*`, replace it with the
+matching `syscall`/`bpfabi`/`sysabi`/`atomicfile`/`ebpfperf` symbol — do not
+touch `vendor/`.
+
 ## Remaining work (next phases)
 
 - Replace dummy stubs with native implementations:

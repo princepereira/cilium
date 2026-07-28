@@ -13,7 +13,7 @@ import (
 	"os"
 	"sync/atomic"
 
-	"github.com/cilium/ebpf/perf"
+	"github.com/cilium/cilium/pkg/ebpfperf"
 
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/logging/logfields"
@@ -130,7 +130,7 @@ func signalCollectMetrics(signalType, signalData, signalStatus string) {
 	metrics.SignalsHandled.WithLabelValues(signalType, signalData, signalStatus).Inc()
 }
 
-func (sm *signalManager) signalReceive(msg *perf.Record) {
+func (sm *signalManager) signalReceive(msg *ebpfperf.Record) {
 	var which SignalType
 	reader := bytes.NewReader(msg.RawSample)
 	if err := binary.Read(reader, binary.NativeEndian, &which); err != nil {

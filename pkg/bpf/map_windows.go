@@ -19,7 +19,7 @@ import (
 	"strings"
 
 	"github.com/cilium/ebpf"
-	"golang.org/x/sys/unix"
+	"syscall"
 
 	"github.com/cilium/cilium/api/v1/models"
 	"github.com/cilium/cilium/pkg/controller"
@@ -168,7 +168,7 @@ func (m *Map) BatchCount() (count int, err error) {
 			// Lookup batch on LRU hash map may fail if the buffer passed is not big enough to
 			// accommodate the largest bucket size in the LRU map. See full comment in
 			// [BatchIterator.IterateAll]
-			case errors.Is(batchErr, unix.ENOSPC):
+			case errors.Is(batchErr, syscall.ENOSPC):
 				if retry == maxRetries-1 {
 					err = batchErr
 				} else {
@@ -1134,7 +1134,7 @@ func (bi *BatchIterator[KT, VT, KP, VP]) IterateAll(ctx context.Context, opts ..
 				//
 				// Note: If this failure happens during the bpf syscall, it is expected that the underlying
 				// cursor will not have been swapped - meaning that we can retry the iteration at the same cursor.
-				if errors.Is(batchErr, unix.ENOSPC) {
+				if errors.Is(batchErr, syscall.ENOSPC) {
 					if retry == bi.maxBatchedRetries()-1 {
 						bi.err = batchErr
 					} else {

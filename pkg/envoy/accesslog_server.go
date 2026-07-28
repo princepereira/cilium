@@ -13,8 +13,8 @@ import (
 	"os"
 	"syscall"
 
+	"github.com/cilium/cilium/pkg/sysabi"
 	cilium "github.com/cilium/proxy/go/cilium/api"
-	"golang.org/x/sys/unix"
 	"google.golang.org/protobuf/proto"
 
 	util "github.com/cilium/cilium/pkg/envoy/util"
@@ -143,7 +143,7 @@ func (s *AccessLogServer) handleConn(ctx context.Context, conn *net.UnixConn) {
 			}
 			break
 		}
-		if flags&unix.MSG_TRUNC != 0 {
+		if flags&sysabi.MSGTrunc != 0 {
 			s.logger.Warn("Envoy: Discarded truncated access log message - increase buffer size via --envoy-access-log-buffer-size",
 				logfields.BufferSize, s.bufferSize,
 			)

@@ -11,7 +11,7 @@ import (
 	"path"
 
 	"github.com/cilium/ebpf"
-	"golang.org/x/sys/unix"
+	"syscall"
 
 	"github.com/cilium/cilium/pkg/logging/logfields"
 )
@@ -56,7 +56,7 @@ func incompatibleMaps(spec *ebpf.CollectionSpec, opts ebpf.CollectionOptions) ([
 
 		pinPath := path.Join(opts.Maps.PinPath, ms.Name)
 		m, err := ebpf.LoadPinnedMap(pinPath, nil)
-		if errors.Is(err, unix.ENOENT) {
+		if errors.Is(err, syscall.ENOENT) {
 			continue
 		}
 		if err != nil {

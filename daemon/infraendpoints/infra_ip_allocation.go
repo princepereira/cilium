@@ -16,12 +16,12 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/cilium/cilium/pkg/sysabi"
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/job"
 	"github.com/cilium/statedb"
 	"github.com/vishvananda/netlink"
 	"go4.org/netipx"
-	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/cilium/cilium/pkg/common"
@@ -236,7 +236,7 @@ func (r *infraIPAllocator) waitForENI(ctx context.Context, macAddr string) error
 
 		for _, l := range links {
 			// filter out slave devices
-			if l.Attrs().RawFlags&unix.IFF_SLAVE != 0 {
+			if l.Attrs().RawFlags&sysabi.IFFSlave != 0 {
 				continue
 			}
 			if l.Attrs().HardwareAddr.String() == macAddr {
@@ -726,9 +726,9 @@ func (r *infraIPAllocator) removeOldRouterState(ipv6 bool, restoredIP net.IP) er
 		return resiliency.Retryable(err)
 	}
 
-	family := netlink.FAMILY_V4
+	family := sysabi.FamilyV4
 	if ipv6 {
-		family = netlink.FAMILY_V6
+		family = sysabi.FamilyV6
 	}
 	addrs, err := safenetlink.AddrList(l, family)
 	if err != nil {

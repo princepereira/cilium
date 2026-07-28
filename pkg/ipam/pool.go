@@ -11,9 +11,10 @@ import (
 	"net/netip"
 	"slices"
 
+	"github.com/cilium/cilium/pkg/sysabi"
 	"github.com/vishvananda/netlink"
 	"go4.org/netipx"
-	"golang.org/x/sys/unix"
+	"syscall"
 
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
 	iputil "github.com/cilium/cilium/pkg/ip"
@@ -377,16 +378,16 @@ func cleanupUnreachableRoutes(prefix netip.Prefix) error {
 	var family int
 	switch prefixFamily(prefix) {
 	case IPv4:
-		family = netlink.FAMILY_V4
+		family = sysabi.FamilyV4
 	case IPv6:
-		family = netlink.FAMILY_V6
+		family = sysabi.FamilyV6
 	default:
 		return errors.New("unknown cidr family")
 	}
 
 	routes, err := safenetlink.RouteListFiltered(family, &netlink.Route{
-		Table: unix.RT_TABLE_MAIN,
-		Type:  unix.RTN_UNREACHABLE,
+		Table: sysabi.RTTableMain,
+		Type:  sysabi.RTNUnreachable,
 	}, netlink.RT_FILTER_TABLE|netlink.RT_FILTER_TYPE)
 	if err != nil {
 		return fmt.Errorf("failed to fetch unreachable routes: %w", err)
@@ -406,7 +407,7 @@ func cleanupUnreachableRoutes(prefix netip.Prefix) error {
 		}
 
 		err = netlink.RouteDel(&route)
-		if err != nil && !errors.Is(err, unix.ESRCH) {
+		if err != nil && !errors.Is(err, syscall.ESRCH) {
 			// We ignore ESRCH, as it means the entry was already deleted
 			errs = errors.Join(errs, fmt.Errorf("failed to delete unreachable route for %s: %w",
 				route.Dst.String(), err),

@@ -12,7 +12,6 @@ import (
 	"syscall"
 
 	"github.com/vishvananda/netlink"
-	"golang.org/x/sys/unix"
 
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/job"
@@ -204,10 +203,10 @@ func terminateConnectionsToBackend(p socketTerminationParams, sd sockets.SocketD
 
 	switch l3n4Addr.Protocol() {
 	case lb.UDP:
-		protocol = unix.IPPROTO_UDP
+		protocol = syscall.IPPROTO_UDP
 		states = sockets.StateFilterUDP
 	case lb.TCP:
-		protocol = unix.IPPROTO_TCP
+		protocol = syscall.IPPROTO_TCP
 		states = sockets.StateFilterTCP
 		// Currently terminating TCP is false by default since iterating
 		// TCP sockets can become expensive compared to UDP due to the
@@ -253,7 +252,7 @@ func terminateConnectionsToBackend(p socketTerminationParams, sd sockets.SocketD
 		})
 
 		if err != nil {
-			if errors.Is(err, unix.EOPNOTSUPP) {
+			if errors.Is(err, syscall.EOPNOTSUPP) {
 				opSupported = false
 				return err
 			} else {

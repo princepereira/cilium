@@ -10,8 +10,8 @@ import (
 	"strings"
 	"unsafe"
 
+	"github.com/cilium/cilium/pkg/bpfabi"
 	"github.com/cilium/ebpf"
-	"golang.org/x/sys/unix"
 
 	"github.com/cilium/cilium/pkg/bpf"
 	"github.com/cilium/cilium/pkg/byteorder"
@@ -451,7 +451,7 @@ func newPolicyMap(logger *slog.Logger, id uint16, maxEntries int, stats *StatsMa
 	path := bpf.LocalMapPath(logger, MapName, id)
 	mapType := ebpf.LPMTrie
 	flags := bpf.GetMapMemoryFlags(mapType)
-	flags |= unix.BPF_F_RDONLY_PROG
+	flags |= bpfabi.RdonlyProg
 
 	return &policyMap{
 		Map: bpf.NewMap(

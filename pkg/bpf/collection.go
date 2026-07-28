@@ -15,10 +15,10 @@ import (
 
 	"golang.org/x/sys/cpu"
 
+	"github.com/cilium/cilium/pkg/bpfabi"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/btf"
-	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/cilium/cilium/pkg/bpf/analyze"
@@ -351,7 +351,7 @@ func adjustMapFlagsForUpgrade(logger *slog.Logger, spec *ebpf.CollectionSpec, op
 		return nil
 	}
 
-	const bpfFRdonlyProg = unix.BPF_F_RDONLY_PROG
+	const bpfFRdonlyProg = bpfabi.RdonlyProg
 
 	for name, mapSpec := range spec.Maps {
 		if mapSpec.Pinning == 0 {
