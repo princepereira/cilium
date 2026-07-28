@@ -139,11 +139,34 @@ transitively imports `pkg/datapath/maps`, to avoid an import cycle).
 matching `syscall`/`bpfabi`/`sysabi`/`atomicfile`/`ebpfperf` symbol — do not
 touch `vendor/`.
 
+## CNC datapath integration (cncshim)
+
+On Windows, Cilium's typed BPF map writes are **mirrored** into the native
+eBPF-for-Windows datapath via [`cncshim`](https://github.com/princepereira/cncshim)
+(`cncapi.dll`). The in-memory `bpf.Map` remains the source of truth; a
+per-map-name **sync hook** forwards each successful `Update`/`Delete` to the
+semantic `cncapi` calls.
+
+| Piece | File (build tag) | Role |
+|-------|------------------|------|
+| Hook registry | `pkg/bpf/cnc_hook_windows.go` (`windows`) | `RegisterMapSyncHook(name, fn)`; invoked from `Map.Update`/`Map.delete`. Cycle-free: map packages register translators, `bpf` never imports them. |
+| CNC client | `pkg/cnc/client_windows.go` (`windows`) | Lazily loads `cncapi.dll` via `cncapi.New()`. **Degrades gracefully** — if the DLL / CNC runtime is absent or the process is not elevated, the client stays disabled and every helper is a no-op, so the agent still starts on dev boxes. |
+| ipcache translator | `pkg/maps/ipcache/cnc_windows.go` (`windows`) | Registers a hook on `cilium_ipcache_v2` that converts `Key`→`netip.Prefix` and `RemoteEndpointInfo.SecurityIdentity`→`uint32`, calling `SetIdentity`/`DeleteIdentity`. |
+
+The pattern extends to the remaining domains by adding a translator file per map
+package: **lxcmap** → `AddOrUpdateEndpoint`/`DeleteEndpoint`, **loadbalancer maps**
+→ service/backend calls, **policymap** → `AddOrUpdateEndpointPolicies`/
+`DeleteEndpointPolicies`. Add matching helpers to `pkg/cnc`.
+
+`cncapi` is Windows-only (imports `golang.org/x/sys/windows`), so all
+integration files are `//go:build windows`; Linux is unaffected. The dependency
+is added via `go get` + `go mod vendor` (never by hand-editing `vendor/`).
+
 ## Remaining work (next phases)
 
-- Replace dummy stubs with native implementations:
-  - **cncshim** (`cncapi.dll`) for identity / load-balancer / endpoint / policy
-    datapath semantics (eBPF map updates).
+- Extend the CNC map-sync pattern to the remaining domains:
+  - **lxcmap** (endpoint), **loadbalancer maps** (service/backend), **policymap**
+    (endpoint policies) — following the ipcache translator pattern above.
   - **hnslib** for network / namespace / policy / endpoint operations.
   - **hcsshim** for container operations where relevant.
 - Provide a policy-map factory and program loader so endpoint regeneration

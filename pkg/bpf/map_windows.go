@@ -1284,6 +1284,8 @@ func (m *Map) Update(key MapKey, value MapValue) error {
 		return fmt.Errorf("update map %s: %w", m.Name(), err)
 	}
 
+	invokeMapSyncHook(m.Logger, m.name, MapOpUpdate, key, value)
+
 	return nil
 }
 
@@ -1377,6 +1379,8 @@ func (m *Map) delete(key MapKey, ignoreMissing bool) (_ bool, err error) {
 	if err != nil {
 		return false, fmt.Errorf("unable to delete element %s from map %s: %w", key, m.name, err)
 	}
+
+	invokeMapSyncHook(m.Logger, m.name, MapOpDelete, key, nil)
 
 	return true, nil
 }
