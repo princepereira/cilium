@@ -14,6 +14,7 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/gneigh"
 	fakegneigh "github.com/cilium/cilium/pkg/datapath/gneigh/fake"
 	"github.com/cilium/cilium/pkg/datapath/iptables/ipset"
+	"github.com/cilium/cilium/pkg/datapath/link"
 	"github.com/cilium/cilium/pkg/datapath/linux/bandwidth"
 	"github.com/cilium/cilium/pkg/datapath/linux/bigtcp"
 	fakebigtcp "github.com/cilium/cilium/pkg/datapath/linux/bigtcp/fake"
@@ -22,19 +23,15 @@ import (
 	routeReconciler "github.com/cilium/cilium/pkg/datapath/linux/route/reconciler"
 	"github.com/cilium/cilium/pkg/datapath/linux/sysctl"
 	fakesysctl "github.com/cilium/cilium/pkg/datapath/linux/sysctl/fake"
-	"github.com/cilium/cilium/pkg/datapath/link"
 	"github.com/cilium/cilium/pkg/datapath/neighbor"
 	dpnode "github.com/cilium/cilium/pkg/datapath/node"
 	"github.com/cilium/cilium/pkg/datapath/tables"
 	"github.com/cilium/cilium/pkg/datapath/tunnel"
 	"github.com/cilium/cilium/pkg/datapath/xdp"
-	"github.com/cilium/cilium/pkg/mtu"
-	monitorAgent "github.com/cilium/cilium/pkg/monitor/agent"
 	"github.com/cilium/cilium/pkg/maps/lxcmap"
 	"github.com/cilium/cilium/pkg/maps/subnet"
-	"github.com/cilium/cilium/pkg/node"
-	fakenode "github.com/cilium/cilium/pkg/node/fake"
-	"github.com/cilium/cilium/pkg/node/manager"
+	monitorAgent "github.com/cilium/cilium/pkg/monitor/agent"
+	"github.com/cilium/cilium/pkg/mtu"
 	wgTypes "github.com/cilium/cilium/pkg/wireguard/types"
 
 	"github.com/cilium/cilium/api/v1/models"
@@ -62,8 +59,8 @@ func (disabledWireguardAgent) IfaceBufferMargins() (uint16, uint16, error) { ret
 // where IPsec is not available. It reports IPsec as always disabled.
 type disabledIPsecConfig struct{}
 
-func (disabledIPsecConfig) Enabled() bool                                        { return false }
-func (disabledIPsecConfig) UseCiliumInternalIP() bool                            { return false }
+func (disabledIPsecConfig) Enabled() bool                                         { return false }
+func (disabledIPsecConfig) UseCiliumInternalIP() bool                             { return false }
 func (disabledIPsecConfig) DNSProxyInsecureSkipTransparentModeCheckEnabled() bool { return false }
 
 // Cell provides the datapath module on non-Linux platforms.
@@ -149,14 +146,11 @@ var Cell = cell.Module(
 	cell.Provide(func() wgTypes.Config { return disabledWireguardConfig{} }),
 	cell.Provide(func() wgTypes.Agent { return disabledWireguardAgent{} }),
 
-	// Provide a no-op datapath node handler. On Linux this is the netlink-based
-	// node handler; here it stores nodes but programs no datapath state. It is
-	// subscribed to the node manager so node events are consumed.
-	cell.Provide(func(lifecycle cell.Lifecycle, nodeManager manager.NodeManager) (node.Handler, node.IDHandler) {
-		h := fakenode.NewHandler()
-		nodeManager.Subscribe(h)
-		return h, h
-	}),
+	// Native Windows datapath node handler (see nodehandler_hns.go). On Linux
+	// this is the netlink-based node handler; here node events are tracked in
+	// memory and remote-node pod CIDRs are programmed as HNS RemoteSubnetRoute
+	// policies (best-effort; a no-op when HNS is unavailable).
+	cell.Provide(newHNSNodeHandler),
 
 	// IPsec is not available on non-Linux platforms; provide a disabled config
 	// and a no-op agent.
@@ -186,4 +180,10 @@ var Cell = cell.Module(
 
 	// Fake/nil BPF maps for cross-platform consumers.
 	cell.Provide(newMapStubs),
+
+	// Native Windows container query manager (HCS). Provided for endpoint /
+	// workload correlation; disabled no-op off Windows or without HCS. The
+	// invoke forces construction and logs availability at startup.
+	cell.Provide(newHCSManager),
+	cell.Invoke(logHCSStatus),
 )

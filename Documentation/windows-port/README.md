@@ -162,16 +162,46 @@ package: **lxcmap** → `AddOrUpdateEndpoint`/`DeleteEndpoint`, **loadbalancer m
 integration files are `//go:build windows`; Linux is unaffected. The dependency
 is added via `go get` + `go mod vendor` (never by hand-editing `vendor/`).
 
+## HNS / HCS integration (hnslib, hcsshim)
+
+Native Windows host-networking and container operations are provided by two
+platform-split wrapper packages. Each has a Windows implementation over the
+Microsoft library and a `//go:build !windows` disabled stub with the same API,
+so cross-platform datapath code can depend on them unconditionally. Both
+degrade gracefully at runtime: if the HCN/HCS service is absent (dev machine,
+non-elevated), `Available()` reports false and mutating ops become no-ops, so
+the agent still starts.
+
+| Package | Backing library | Operations |
+|---------|-----------------|------------|
+| `pkg/windows/hns` | `github.com/Microsoft/hnslib/hcn` | Networks (`GetNetworkID`), endpoints (`CreateEndpoint`/`DeleteEndpoint`), namespaces (`CreateNamespace`/`DeleteNamespace`/`AttachEndpointToNamespace`), and overlay policy (`AddRemoteNodeRoute`/`RemoveRemoteNodeRoute` → HNS `RemoteSubnetRoute`). |
+| `pkg/windows/hcs` | `github.com/Microsoft/hcsshim` | Read-only container correlation: `ListContainers`, `GetContainer`. Cilium does not manage container lifecycles. |
+
+Wiring (`pkg/datapath`, `//go:build !linux`):
+
+- `nodehandler_hns.go` provides a native node handler that **embeds**
+  `fakenode.Handler` (reusing its in-memory node/ID bookkeeping the node
+  manager relies on) and overrides `NodeAdd`/`NodeUpdate`/`NodeDelete` to
+  program each remote node's pod CIDR as an HNS `RemoteSubnetRoute` policy
+  (provider = the remote node's internal IP). It replaces the previous
+  `fakenode.NewHandler()` provider in `cells_windows.go`.
+- The `hcs.Manager` is provided as a hive cell with a startup `cell.Invoke` that
+  forces construction and logs availability.
+
+The module path is `github.com/Microsoft/hnslib` (capital **M**), despite the
+lowercase form in the original task text.
+
 ## Remaining work (next phases)
 
 - Extend the CNC map-sync pattern to the remaining domains:
   - **lxcmap** (endpoint), **loadbalancer maps** (service/backend), **policymap**
     (endpoint policies) — following the ipcache translator pattern above.
-  - **hnslib** for network / namespace / policy / endpoint operations.
-  - **hcsshim** for container operations where relevant.
+- Consume `pkg/windows/hns` for pod endpoint create/delete/namespace-attach in
+  the CNI/endpoint path, and derive the HNS network name / isolation ID from
+  config instead of the `"cilium"` default constant.
 - Provide a policy-map factory and program loader so endpoint regeneration
   succeeds (currently retries with "endpoint has nil policyMapFactory").
-- Test on a real Windows node with `cncapi.dll` / eBPF-for-Windows present.
+- Test on a real Windows node with `cncapi.dll` / HNS / HCS present.
 
 ## Session history
 
