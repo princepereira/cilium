@@ -29,6 +29,7 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/tunnel"
 	"github.com/cilium/cilium/pkg/datapath/xdp"
 	"github.com/cilium/cilium/pkg/maps/lxcmap"
+	"github.com/cilium/cilium/pkg/maps/policymap"
 	"github.com/cilium/cilium/pkg/maps/subnet"
 	monitorAgent "github.com/cilium/cilium/pkg/monitor/agent"
 	"github.com/cilium/cilium/pkg/mtu"
@@ -122,6 +123,14 @@ var Cell = cell.Module(
 	// Provides the lxc / endpoints map. Backed by the in-memory BPF map
 	// implementation on non-Linux platforms (see pkg/bpf).
 	lxcmap.Cell,
+
+	// Provides the per-endpoint policy map factory (policymap.Factory) consumed
+	// by endpoint regeneration. On non-Linux platforms the policy, stats and
+	// call maps are backed by the in-memory BPF map implementation (see
+	// pkg/bpf), so endpoints can open/close their policy maps without a kernel
+	// datapath. Without this the endpoint has a nil policyMapFactory and
+	// regeneration retries indefinitely.
+	policymap.Cell,
 
 	// Provide empty devices and routes tables. On Linux the devices controller
 	// populates these from netlink; on other platforms no device or route

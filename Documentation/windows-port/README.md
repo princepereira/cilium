@@ -44,8 +44,9 @@ remaining (native datapath) work.
 - ✅ The agent **starts and stays running** on Windows: it creates the host
   endpoint, serves the Cilium API / health API / shell socket, and runs its
   control loops without crashing.
-- ⏳ Native datapath programming (policy-map programming, BPF program loading,
-  HNS/cncshim wiring) is stubbed/no-op and is the next major phase.
+- ⏳ Native datapath programming (BPF program loading, HNS/cncshim wiring) is
+  stubbed/no-op and is the next major phase. The per-endpoint **policy-map
+  factory** is now wired (in-memory backend) so endpoint regeneration proceeds.
 
 ## Build & run
 
@@ -199,9 +200,27 @@ lowercase form in the original task text.
 - Consume `pkg/windows/hns` for pod endpoint create/delete/namespace-attach in
   the CNI/endpoint path, and derive the HNS network name / isolation ID from
   config instead of the `"cilium"` default constant.
-- Provide a policy-map factory and program loader so endpoint regeneration
-  succeeds (currently retries with "endpoint has nil policyMapFactory").
 - Test on a real Windows node with `cncapi.dll` / HNS / HCS present.
+
+## Endpoint regeneration / policy-map factory
+
+Endpoint regeneration requires a `policymap.Factory` (see
+`pkg/endpoint/bpf.go`, which aborts with "endpoint has nil policyMapFactory"
+when it is nil). On Windows this is now provided by including
+`policymap.Cell` in the datapath hive (`pkg/datapath/cells_windows.go`):
+
+- `policymap.createFactory` builds the factory over the standard `bpf.Map`
+  API, which resolves to the in-memory backend on Windows
+  (`pkg/bpf/map_mem_windows.go`). The policy, stats and call (`ProgramArray`)
+  maps are all created generically in memory — no kernel datapath needed.
+- The previous stub in `pkg/datapath/endpoint_datapath_windows.go` that
+  provided `PolicyMapFactory: nil` was removed to avoid a duplicate provider;
+  the factory now comes solely from `policymap.Cell`.
+- The **program loader** half of regeneration is satisfied by the
+  `FakeOrchestrator` (`pkg/endpoint/fake/orchestrator.go`), whose
+  `ReloadDatapath` / `EndpointHash` / `WriteEndpointConfig` return success/no-op,
+  so regeneration completes without a real eBPF loader
+  (`pkg/datapath/loader/loader_windows.go` remains a compile-only stub).
 
 ## Session history
 

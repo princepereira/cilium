@@ -15,15 +15,15 @@ import (
 	fakeendpoint "github.com/cilium/cilium/pkg/endpoint/fake"
 	endpointTypes "github.com/cilium/cilium/pkg/endpoint/types"
 	"github.com/cilium/cilium/pkg/maps/ctmap"
-	"github.com/cilium/cilium/pkg/maps/policymap"
 )
 
 // endpointDatapathDepsOut bundles the datapath dependencies required to
 // construct endpoints (see pkg/endpoint.EndpointParams). On Linux these are
 // backed by eBPF maps and the program loader; on non-Linux platforms we
 // provide non-functional stubs so the agent hive can be constructed and
-// started. Endpoint regeneration itself is not supported until a native
-// (e.g. HNS-based) datapath is implemented.
+// started. The policy map factory is provided separately by policymap.Cell
+// (see cells_windows.go), backed by the in-memory BPF map implementation, so
+// endpoint regeneration can open per-endpoint policy maps.
 type endpointDatapathDepsOut struct {
 	cell.Out
 
@@ -32,7 +32,6 @@ type endpointDatapathDepsOut struct {
 	CompilationLock loaderTypes.CompilationLock
 	IPTablesManager iptables.Manager
 	CTMapGC         ctmap.GCRunner
-	PolicyMapFactory policymap.Factory
 }
 
 func newEndpointDatapathDeps() endpointDatapathDepsOut {
@@ -42,6 +41,5 @@ func newEndpointDatapathDeps() endpointDatapathDepsOut {
 		CompilationLock: loader.NewCompilationLock(),
 		IPTablesManager: fakeiptables.NewManager(),
 		CTMapGC:         ctmap.NewFakeGCRunner(),
-		PolicyMapFactory: nil,
 	}
 }
