@@ -66,12 +66,19 @@ enforces an elevated-token / Administrators-group check):
 
 ```powershell
 .\ciliumd.exe --identity-allocation-mode=crd --enable-k8s=false `
-  --bpf-root=$env:TEMP\bpf --state-dir=$env:TEMP\ciliumstate
+  --bpf-root=$env:TEMP\bpf --state-dir=$env:TEMP\ciliumstate `
+  --enable-health-checking=false --enable-endpoint-health-checking=false
 ```
 
 Notes:
 - `--devices` and `--run-dir` are **not** valid flags; the set above is a known
   minimal working configuration.
+- `--enable-health-checking=false --enable-endpoint-health-checking=false`
+  disable the cilium-health daemon and its virtual health endpoint. The health
+  endpoint launches a separate `cilium-health-responder` process in its own
+  namespace, which is not supported on Windows; without these flags the agent
+  loops forever logging `Cleaning up Cilium health endpoint` /
+  `Failed to kill cilium-health-responder`.
 - BPF maps run in an **in-memory backend** on Windows, so the eBPF-for-Windows
   runtime (`ebpfapi.dll`) is not required to start the agent.
 
@@ -221,6 +228,22 @@ when it is nil). On Windows this is now provided by including
   `ReloadDatapath` / `EndpointHash` / `WriteEndpointConfig` return success/no-op,
   so regeneration completes without a real eBPF loader
   (`pkg/datapath/loader/loader_windows.go` remains a compile-only stub).
+
+### Periodic-job noise reduction
+
+Two background jobs previously logged an error on every tick on Windows because
+they call Linux-only datapath primitives. They are now clean no-ops:
+
+- **link-cache sync** (`pkg/datapath/link`): `LinkCache.SyncCache` enumerated
+  netlink links (`safenetlink.LinkList`), which returns `ErrNotImplemented` off
+  Linux. `SyncCache` is now build-tag split — the netlink implementation lives
+  in `link_linux.go` and a no-op returning `nil` (no netlink link table;
+  interfaces are managed via HNS) lives in `link_unspecified.go`.
+- **endpoint BPF-prog watchdog** (`pkg/endpoint/watchdog`): it calls
+  `loader.DeviceHasSKBProgramLoaded` to detect externally-removed tc programs.
+  There is no tc/eBPF datapath off Linux, so the Windows stub now returns
+  `(true, nil)` ("considered loaded") instead of an error, so the watchdog
+  treats the datapath as healthy rather than failing every interval.
 
 ## Session history
 

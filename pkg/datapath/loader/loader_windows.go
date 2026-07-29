@@ -90,7 +90,11 @@ func LoadSockTerm(l *slog.Logger, sockRevNat4, sockRevNat6 *bpf.Map) (*bpfgen.So
 	return nil, nil, errNotSupported
 }
 
-// DeviceHasSKBProgramLoaded is not supported on non-Linux platforms.
+// DeviceHasSKBProgramLoaded reports whether a device has a tc(x) SKB program
+// attached. There is no tc/eBPF datapath on non-Linux platforms, so there are
+// no programs for the watchdog to detect as missing; report "loaded" so the
+// endpoint BPF program watchdog treats the (absent) datapath as healthy
+// instead of failing on every tick.
 func DeviceHasSKBProgramLoaded(device string, checkEgress bool) (bool, error) {
-	return false, errNotSupported
+	return true, nil
 }
