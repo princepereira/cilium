@@ -44,9 +44,36 @@ remaining (native datapath) work.
 - ✅ The agent **starts and stays running** on Windows: it creates the host
   endpoint, serves the Cilium API / health API / shell socket, and runs its
   control loops without crashing.
-- ⏳ Native datapath programming (BPF program loading, HNS/cncshim wiring) is
-  stubbed/no-op and is the next major phase. The per-endpoint **policy-map
-  factory** is now wired (in-memory backend) so endpoint regeneration proceeds.
+- ⏳ Native datapath programming is being wired incrementally through the
+  cncshim map-sync hooks: **ipcache** (identities) and **load-balancer**
+  (services/backends) writes are now mirrored to the CNC eBPF datapath; lxcmap
+  and policymap remain to be wired. HNS overlay routes are programmed via the
+  native node handler. The per-endpoint **policy-map factory** is wired
+  (in-memory backend) so endpoint regeneration proceeds.
+
+### Running against a real Kubernetes (AKS) node
+
+To bring the agent up on an actual Windows worker node joined to a cluster:
+
+1. **k8s auth**: point the agent at a kubeconfig built from the node's
+   ServiceAccount token (e.g. `C:\k\cilium-config`); apply the
+   `install/windows/rbac.yaml` ClusterRole/binding so the agent SA can read
+   nodes, endpoints, services, and Cilium CRDs.
+2. **CRDs**: apply all Cilium CRDs (the agent waits on them at startup).
+3. **PodCIDR**: for `cluster-pool`/`kubernetes` IPAM the agent blocks on
+   `required IPv4/IPv6 PodCIDR not available` until the `CiliumNode` has
+   `spec.ipam.podCIDRs` — either run cilium-operator, `kubectl patch` the
+   CiliumNode (use `--patch-file`; PowerShell single quotes don't protect inner
+   `"`), or use `--ipam=delegated-plugin` (matches AKS/Azure-CNI) to skip the
+   force-required PodCIDR check entirely.
+4. **API socket**: pass an **absolute** `--socket-path=C:\var\run\cilium\cilium.sock`.
+   The default `/var/run/cilium/cilium.sock` is drive-relative on Windows and
+   lands on the CWD drive, so `curl.exe --unix-socket ...` can't find it.
+
+Query the LB control plane over the socket:
+`curl.exe -s --unix-socket C:\var\run\cilium\cilium.sock http://localhost/v1/service`.
+Note `curl` is a PowerShell alias for `Invoke-WebRequest` — use `curl.exe`; and
+`ConvertFrom-Json` pipes an array as one object, so iterate with `foreach`.
 
 ## Build & run
 
@@ -160,11 +187,12 @@ semantic `cncapi` calls.
 | Hook registry | `pkg/bpf/cnc_hook_windows.go` (`windows`) | `RegisterMapSyncHook(name, fn)`; invoked from `Map.Update`/`Map.delete`. Cycle-free: map packages register translators, `bpf` never imports them. |
 | CNC client | `pkg/cnc/client_windows.go` (`windows`) | Lazily loads `cncapi.dll` via `cncapi.New()`. **Degrades gracefully** — if the DLL / CNC runtime is absent or the process is not elevated, the client stays disabled and every helper is a no-op, so the agent still starts on dev boxes. |
 | ipcache translator | `pkg/maps/ipcache/cnc_windows.go` (`windows`) | Registers a hook on `cilium_ipcache_v2` that converts `Key`→`netip.Prefix` and `RemoteEndpointInfo.SecurityIdentity`→`uint32`, calling `SetIdentity`/`DeleteIdentity`. |
+| loadbalancer translator | `pkg/loadbalancer/maps/cnc_windows.go` (`windows`) | Registers hooks on `cilium_lb{4,6}_services_v2` and `cilium_lb{4,6}_backends_v3`. A **stateful translator** accumulates Cilium's raw slot writes (master entry = backend slot 0 carrying the service ID/flags; slots 1..N = backend refs; global backend table) and emits semantic `CreateLoadBalancerService` / `UpdateLoadBalancerServiceBackends` / `DeleteLoadBalancerService` / `Create`/`DeleteLoadBalancerBackends` calls. Values arrive in **network byte order** (the reconciler calls `.ToNetwork()`), so the hook calls `.ToHost()` first. Order-independent: a service is re-reconciled whenever a referenced backend appears/disappears. Service ID = the master entry's `RevNat` field. |
 
 The pattern extends to the remaining domains by adding a translator file per map
-package: **lxcmap** → `AddOrUpdateEndpoint`/`DeleteEndpoint`, **loadbalancer maps**
-→ service/backend calls, **policymap** → `AddOrUpdateEndpointPolicies`/
-`DeleteEndpointPolicies`. Add matching helpers to `pkg/cnc`.
+package: **lxcmap** → `AddOrUpdateEndpoint`/`DeleteEndpoint`, **policymap** →
+`AddOrUpdateEndpointPolicies`/`DeleteEndpointPolicies`. Add matching helpers to
+`pkg/cnc`. (**loadbalancer maps** are done — see the table above.)
 
 `cncapi` is Windows-only (imports `golang.org/x/sys/windows`), so all
 integration files are `//go:build windows`; Linux is unaffected. The dependency
@@ -202,8 +230,8 @@ lowercase form in the original task text.
 ## Remaining work (next phases)
 
 - Extend the CNC map-sync pattern to the remaining domains:
-  - **lxcmap** (endpoint), **loadbalancer maps** (service/backend), **policymap**
-    (endpoint policies) — following the ipcache translator pattern above.
+  - **lxcmap** (endpoint) and **policymap** (endpoint policies) — following the
+    ipcache/loadbalancer translator pattern above. (**loadbalancer maps** done.)
 - Consume `pkg/windows/hns` for pod endpoint create/delete/namespace-attach in
   the CNI/endpoint path, and derive the HNS network name / isolation ID from
   config instead of the `"cilium"` default constant.
