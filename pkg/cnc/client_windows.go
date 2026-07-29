@@ -97,3 +97,63 @@ func DeleteIdentity(subnet netip.Prefix) error {
 	}
 	return c.DeleteIdentity(subnet)
 }
+
+// CreateLoadBalancerBackends registers (or updates) load-balancer backends in
+// the CNC datapath's global backend table. No-op when the datapath is
+// unavailable.
+func CreateLoadBalancerBackends(backends []cncapi.BackendInfo) error {
+	c := ensureClient()
+	if c == nil {
+		return nil
+	}
+	return c.CreateLoadBalancerBackends(backends)
+}
+
+// CreateLoadBalancerService creates (or updates) a load-balancer service
+// frontend in the CNC datapath. No-op when the datapath is unavailable.
+func CreateLoadBalancerService(serviceID uint16, info *cncapi.LoadBalancerInfo) error {
+	c := ensureClient()
+	if c == nil {
+		return nil
+	}
+	return c.CreateLoadBalancerService(serviceID, info)
+}
+
+// UpdateLoadBalancerServiceBackends associates/dissociates backends with a
+// load-balancer service. newBackends are added, oldBackends removed. No-op when
+// the datapath is unavailable.
+func UpdateLoadBalancerServiceBackends(serviceID uint16, info *cncapi.LoadBalancerInfo, newBackends, oldBackends []cncapi.BackendInfo) error {
+	c := ensureClient()
+	if c == nil {
+		return nil
+	}
+	return c.UpdateLoadBalancerServiceBackends(serviceID, info, newBackends, oldBackends)
+}
+
+// DeleteLoadBalancerService removes a load-balancer service frontend from the
+// CNC datapath. No-op when the datapath is unavailable.
+func DeleteLoadBalancerService(serviceID uint16, info *cncapi.LoadBalancerInfo) error {
+	c := ensureClient()
+	if c == nil {
+		return nil
+	}
+	return c.DeleteLoadBalancerService(serviceID, info)
+}
+
+// DeleteLoadBalancerBackends removes backends from the CNC datapath's global
+// backend table. No-op when the datapath is unavailable.
+func DeleteLoadBalancerBackends(addressFamily uint16, backendIDs []uint32) error {
+	c := ensureClient()
+	if c == nil {
+		return nil
+	}
+	return c.DeleteLoadBalancerBackends(addressFamily, backendIDs)
+}
+
+// SetClientForTesting overrides the lazily-initialized CNC client. It is
+// intended for unit tests that inject a cncapi mock. It also marks the lazy
+// initializer as done so ensureClient does not overwrite the injected client.
+func SetClientForTesting(c cncapi.CNCApi) {
+	initOnce.Do(func() {})
+	client = c
+}
