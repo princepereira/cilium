@@ -19,8 +19,8 @@ import (
 	"github.com/cilium/hive/job"
 	"github.com/cilium/statedb"
 	"github.com/cilium/statedb/reconciler"
-	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"syscall"
 
 	"github.com/cilium/cilium/pkg/byteorder"
 	cmtypes "github.com/cilium/cilium/pkg/clustermesh/types"
@@ -1204,7 +1204,7 @@ func (ops *BPFOps) upsertService(svcKey maps.ServiceKey, svcVal maps.ServiceValu
 	svcVal = svcVal.ToNetwork()
 
 	err = ops.LBMaps.UpdateService(svcKey, svcVal)
-	if errors.Is(err, unix.E2BIG) {
+	if errors.Is(err, syscall.E2BIG) {
 		return fmt.Errorf("Unable to update service entry %+v => %+v: "+
 			"Unable to update element for LB bpf map: "+
 			"You can resize it with the flag \"--%s\". "+

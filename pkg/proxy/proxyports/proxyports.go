@@ -14,10 +14,10 @@ import (
 
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/job"
-	"github.com/google/renameio/v2"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/spf13/pflag"
 
+	"github.com/cilium/cilium/pkg/atomicfile"
 	"github.com/cilium/cilium/pkg/datapath/iptables"
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/logging/logfields"
@@ -556,7 +556,7 @@ func (p *ProxyPorts) StoreProxyPorts(ctx context.Context) error {
 	scopedLogger := p.logger.With(logfields.Path, p.proxyPortsPath)
 
 	// use renameio to prevent partial writes
-	out, err := renameio.NewPendingFile(p.proxyPortsPath, renameio.WithExistingPermissions(), renameio.WithPermissions(0o600))
+	out, err := atomicfile.NewPendingFile(p.proxyPortsPath, atomicfile.WithExistingPermissions(), atomicfile.WithPermissions(0o600))
 	if err != nil {
 		scopedLogger.Error("failed to prepare proxy ports file", logfields.Error, err)
 		return err

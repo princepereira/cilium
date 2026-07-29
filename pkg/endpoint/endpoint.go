@@ -716,16 +716,16 @@ func CreateIngressEndpoint(p EndpointParams,
 func CreateHostEndpoint(p EndpointParams,
 	dnsRulesAPI DNSRulesAPI, proxy EndpointProxy,
 	policyDebugLog io.Writer) (*Endpoint, error) {
-	iface, err := safenetlink.LinkByName(defaults.HostDevice)
+	iface, ifIndex, err := hostEndpointIfaceAttrs()
 	if err != nil {
 		return nil, err
 	}
 
 	ep := createEndpoint(p, dnsRulesAPI, proxy, 0, defaults.HostDevice, policyDebugLog)
 	ep.isHost = true
-	ep.mac = mac.MAC(iface.Attrs().HardwareAddr)
-	ep.nodeMAC = mac.MAC(iface.Attrs().HardwareAddr)
-	ep.ifIndex = iface.Attrs().Index
+	ep.mac = mac.MAC(iface)
+	ep.nodeMAC = mac.MAC(iface)
+	ep.ifIndex = ifIndex
 	ep.DatapathConfiguration = NewDatapathConfiguration()
 
 	ep.setState(StateWaitingForIdentity, "Endpoint creation")

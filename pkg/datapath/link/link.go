@@ -4,7 +4,6 @@
 package link
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -56,7 +55,7 @@ func AddAltName(linkName, altName string) error {
 		return err
 	}
 
-	return netlink.LinkAddAltName(link, altName)
+	return addAltName(link, altName)
 }
 
 func GetHardwareAddr(ifName string) (mac.MAC, error) {
@@ -112,23 +111,6 @@ func newLinkCache(params linkCacheParams) *LinkCache {
 	params.JobGroup.Add(job.Timer("sync", lc.SyncCache, 15*time.Second))
 
 	return lc
-}
-
-func (c *LinkCache) SyncCache(_ context.Context) error {
-	links, err := safenetlink.LinkList()
-	if err != nil {
-		return err
-	}
-
-	indexToName := make(map[int]string, len(links))
-	for _, link := range links {
-		indexToName[link.Attrs().Index] = link.Attrs().Name
-	}
-
-	c.mu.Lock()
-	c.indexToName = indexToName
-	c.mu.Unlock()
-	return nil
 }
 
 func (c *LinkCache) lookupName(ifIndex int) (string, bool) {

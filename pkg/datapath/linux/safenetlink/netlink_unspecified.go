@@ -16,6 +16,18 @@ import (
 	"github.com/vishvananda/netlink"
 )
 
+// WithRetry runs netlinkFunc once. On non-linux platforms netlink dumps cannot
+// be interrupted, so no retry is necessary.
+func WithRetry(netlinkFunc func() error) error {
+	return netlinkFunc()
+}
+
+// WithRetryResult works like WithRetry, but allows netlinkFunc to have a return
+// value besides the error.
+func WithRetryResult[T any](netlinkFunc func() (T, error)) (out T, err error) {
+	return netlinkFunc()
+}
+
 func NewHandle(cfg *HandleConfig) (*netlink.Handle, error) {
 	return nil, netlink.ErrNotImplemented
 }

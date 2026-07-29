@@ -10,7 +10,7 @@ import (
 	"sync"
 	"unsafe"
 
-	"golang.org/x/sys/unix"
+	"github.com/cilium/cilium/pkg/bpfabi"
 
 	"github.com/cilium/cilium/pkg/bpf"
 	cmtypes "github.com/cilium/cilium/pkg/clustermesh/types"
@@ -209,7 +209,7 @@ func newIPCacheMap(name string) *bpf.Map {
 		&Key{},
 		&RemoteEndpointInfo{},
 		MaxEntries,
-		unix.BPF_F_NO_PREALLOC|unix.BPF_F_RDONLY_PROG)
+		bpfabi.NoPrealloc|bpfabi.RdonlyProg)
 }
 
 // NewMap instantiates a Map.

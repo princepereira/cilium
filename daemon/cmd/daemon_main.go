@@ -25,10 +25,8 @@ import (
 	"github.com/cilium/cilium/daemon/cmd/legacy"
 	"github.com/cilium/cilium/daemon/infraendpoints"
 	"github.com/cilium/cilium/pkg/bpf"
-	"github.com/cilium/cilium/pkg/cgroups"
 	"github.com/cilium/cilium/pkg/common"
 	ipsec "github.com/cilium/cilium/pkg/datapath/linux/ipsec/types"
-	"github.com/cilium/cilium/pkg/datapath/linux/probes"
 	datapathOption "github.com/cilium/cilium/pkg/datapath/option"
 	datapathTables "github.com/cilium/cilium/pkg/datapath/tables"
 	"github.com/cilium/cilium/pkg/defaults"
@@ -975,11 +973,11 @@ func initEnv(logger *slog.Logger, vp *viper.Viper) {
 			logfields.Path, option.Config.StateDir,
 		)
 	}
-	if _, err := os.Stat(option.Config.BpfDir); os.IsNotExist(err) {
+	if err := checkBPFTemplateDir(scopedLog); err != nil {
 		logging.Fatal(scopedLog, "BPF template directory: NOT OK. Please run 'make install-bpf'", logfields.Error, err)
 	}
 
-	if err := probes.CreateHeaderFiles(filepath.Join(option.Config.BpfDir, "include/bpf"), probes.ExecuteHeaderProbes(scopedLog)); err != nil {
+	if err := createBPFHeaderFiles(scopedLog); err != nil {
 		logging.Fatal(scopedLog, "failed to create header files with feature macros", logfields.Error, err)
 	}
 
@@ -1021,8 +1019,7 @@ func initEnv(logger *slog.Logger, vp *viper.Viper) {
 	// the path to an already mounted filesystem instead. This is
 	// useful if the daemon is being round inside a namespace and the
 	// BPF filesystem is mapped into the slave namespace.
-	bpf.CheckOrMountFS(logger, option.Config.BPFRoot)
-	cgroups.CheckOrMountCgrpFS(logger, option.Config.CGroupRoot)
+	mountBPFFilesystems(logger)
 
 	option.Config.Opts.SetBool(option.Debug, debugDatapath)
 	option.Config.Opts.SetBool(option.DebugLB, debugDatapath)
@@ -1305,31 +1302,4 @@ func daemonLegacyInitialization(params daemonParams) legacy.DaemonInitialization
 	})
 
 	return legacy.DaemonInitialization{}
-}
-
-func initClockSourceOption(logger *slog.Logger) {
-	option.Config.ClockSource = option.ClockSourceKtime
-	hz, err := probes.KernelHZ()
-	if err != nil {
-		logger.Info(
-			fmt.Sprintf("Auto-disabling %q feature since KERNEL_HZ cannot be determined", option.EnableBPFClockProbe),
-			logfields.Error, err,
-		)
-		option.Config.EnableBPFClockProbe = false
-	} else {
-		option.Config.KernelHz = int(hz)
-	}
-
-	if option.Config.EnableBPFClockProbe {
-		t, err := probes.Jiffies()
-		if err == nil && t > 0 {
-			option.Config.ClockSource = option.ClockSourceJiffies
-		} else {
-			logger.Warn(
-				fmt.Sprintf("Auto-disabling %q feature since kernel doesn't expose jiffies", option.EnableBPFClockProbe),
-				logfields.Error, err,
-			)
-			option.Config.EnableBPFClockProbe = false
-		}
-	}
 }

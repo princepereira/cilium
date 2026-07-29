@@ -13,10 +13,11 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/cilium/cilium/pkg/sysabi"
 	"github.com/cilium/hive/job"
 	"github.com/vishvananda/netlink"
 	"go4.org/netipx"
-	"golang.org/x/sys/unix"
+	"syscall"
 
 	agentK8s "github.com/cilium/cilium/daemon/k8s"
 	awsTypes "github.com/cilium/cilium/pkg/aws/types"
@@ -432,7 +433,7 @@ func configureENINetlinkDevice(link netlink.Link, cfg eniDeviceConfig, sysctl sy
 		err := netlink.AddrAdd(link, &netlink.Addr{
 			IPNet: netipx.PrefixIPNet(netip.PrefixFrom(cfg.ip, cfg.cidr.Bits())),
 		})
-		if err != nil && !errors.Is(err, unix.EEXIST) {
+		if err != nil && !errors.Is(err, syscall.EEXIST) {
 			return fmt.Errorf("failed to set eni primary ip address %q on link %q: %w", cfg.ip, link.Attrs().Name, err)
 		}
 
@@ -443,10 +444,10 @@ func configureENINetlinkDevice(link netlink.Link, cfg eniDeviceConfig, sysctl sy
 		err = netlink.RouteDel(&netlink.Route{
 			Dst:   netipx.PrefixIPNet(cfg.cidr),
 			Src:   cfg.ip.AsSlice(),
-			Table: unix.RT_TABLE_MAIN,
-			Scope: netlink.SCOPE_LINK,
+			Table: sysabi.RTTableMain,
+			Scope: sysabi.ScopeLink,
 		})
-		if err != nil && !errors.Is(err, unix.ESRCH) {
+		if err != nil && !errors.Is(err, syscall.ESRCH) {
 			// We ignore ESRCH, as it means the entry was already deleted
 			return fmt.Errorf("failed to delete default route %q on link %q: %w", cfg.ip, link.Attrs().Name, err)
 		}

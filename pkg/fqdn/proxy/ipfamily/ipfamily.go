@@ -3,8 +3,6 @@
 
 package ipfamily
 
-import "golang.org/x/sys/unix"
-
 type IPFamily struct {
 	Name       string
 	UDPAddress string
@@ -23,9 +21,9 @@ func IPv4() IPFamily {
 		TCPAddress: "tcp4",
 		Localhost:  "127.0.0.1",
 
-		SocketOptsFamily:          unix.SOL_IP,
-		SocketOptsTransparent:     unix.IP_TRANSPARENT,
-		SocketOptsRecvOrigDstAddr: unix.IP_RECVORIGDSTADDR,
+		SocketOptsFamily:          sockoptIPv4Family,
+		SocketOptsTransparent:     sockoptIPv4Transparent,
+		SocketOptsRecvOrigDstAddr: sockoptIPv4RecvOrigDstAddr,
 	}
 }
 
@@ -36,8 +34,8 @@ func IPv6() IPFamily {
 		TCPAddress: "tcp6",
 		Localhost:  "::1",
 
-		SocketOptsFamily:          unix.SOL_IPV6,
-		SocketOptsTransparent:     unix.IPV6_TRANSPARENT,
-		SocketOptsRecvOrigDstAddr: unix.IPV6_RECVORIGDSTADDR,
+		SocketOptsFamily:          sockoptIPv6Family,
+		SocketOptsTransparent:     sockoptIPv6Transparent,
+		SocketOptsRecvOrigDstAddr: sockoptIPv6RecvOrigDstAddr,
 	}
 }

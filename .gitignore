@@ -114,3 +114,6 @@ bpf/.cache
 # Files used for direnv
 .direnv
 .envrc
+
+# secure files
+install/windows/cilium-config

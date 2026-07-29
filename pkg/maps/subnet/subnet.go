@@ -8,8 +8,8 @@ import (
 	"net/netip"
 	"unsafe"
 
+	"github.com/cilium/cilium/pkg/bpfabi"
 	"github.com/cilium/hive/cell"
-	"golang.org/x/sys/unix"
 
 	"github.com/cilium/cilium/pkg/bpf"
 	"github.com/cilium/cilium/pkg/ebpf"
@@ -119,7 +119,7 @@ func SubnetMap() *bpf.Map {
 		&SubnetMapKey{},
 		&SubnetMapValue{},
 		MaxEntries,
-		unix.BPF_F_NO_PREALLOC|unix.BPF_F_RDONLY_PROG,
+		bpfabi.NoPrealloc|bpfabi.RdonlyProg,
 	)
 }
 

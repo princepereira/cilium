@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Authors of Cilium
 
+//go:build linux
+
 package ebpf
 
 import (
@@ -19,33 +21,6 @@ import (
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/metrics"
 )
-
-type MapSpec = ciliumebpf.MapSpec
-
-type PinType = ciliumebpf.PinType
-
-const (
-	Hash       = ciliumebpf.Hash
-	PerCPUHash = ciliumebpf.PerCPUHash
-	Array      = ciliumebpf.Array
-	HashOfMaps = ciliumebpf.HashOfMaps
-	LPMTrie    = ciliumebpf.LPMTrie
-	LRUHash    = ciliumebpf.LRUHash
-	LRUCPUHash = ciliumebpf.LRUCPUHash
-	RingBuf    = ciliumebpf.RingBuf
-
-	PinNone   = ciliumebpf.PinNone
-	PinByName = ciliumebpf.PinByName
-)
-
-var (
-	ErrKeyNotExist = ciliumebpf.ErrKeyNotExist
-)
-
-// IterateCallback represents the signature of the callback function expected by
-// the IterateWithCallback method, which in turn is used to iterate all the
-// keys/values of a map.
-type IterateCallback func(key, value any)
 
 // Map represents an eBPF map.
 type Map struct {

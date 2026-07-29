@@ -10,7 +10,7 @@ import (
 	"net/netip"
 	"syscall"
 
-	"github.com/vishvananda/netlink"
+	"github.com/cilium/cilium/pkg/sysabi"
 	"go4.org/netipx"
 
 	"github.com/cilium/cilium/pkg/datapath/linux/linux_defaults"
@@ -183,7 +183,7 @@ func installToProxyRoutesIPv4(loDevice *tables.Device, routeManager *reconciler.
 
 // removeToProxyRulesIPv4 ensures routes and rules for proxy traffic are removed.
 func removeToProxyRulesIPv4() error {
-	if err := route.DeleteRule(netlink.FAMILY_V4, toProxyRule); err != nil && !errors.Is(err, syscall.ENOENT) {
+	if err := route.DeleteRule(sysabi.FamilyV4, toProxyRule); err != nil && !errors.Is(err, syscall.ENOENT) {
 		return fmt.Errorf("removing ipv4 proxy routing rule: %w", err)
 	}
 
@@ -215,7 +215,7 @@ func installToProxyRulesIPv6(loDevice *tables.Device, routeManager *reconciler.D
 
 // removeToProxyRulesIPv6 ensures routes and rules for proxy traffic are removed.
 func removeToProxyRulesIPv6() error {
-	if err := route.DeleteRule(netlink.FAMILY_V6, toProxyRule); err != nil {
+	if err := route.DeleteRule(sysabi.FamilyV6, toProxyRule); err != nil {
 		if !errors.Is(err, syscall.ENOENT) && !errors.Is(err, syscall.EAFNOSUPPORT) {
 			return fmt.Errorf("removing ipv6 proxy routing rule: %w", err)
 		}
@@ -262,7 +262,7 @@ func installFromProxyRoutesIPv4(
 		AdminDistance: reconciler.AdminDistanceDefault,
 
 		Device: device,
-		Scope:  reconciler.Scope(netlink.SCOPE_LINK),
+		Scope:  reconciler.Scope(sysabi.ScopeLink),
 	}
 	fromProxyDefaultRoute4 := reconciler.DesiredRoute{
 		Owner:         routeOwner,
@@ -297,10 +297,10 @@ func installFromProxyRoutesIPv4(
 
 // removeFromProxyRulesIPv4 ensures routes and rules for traffic from the proxy are removed.
 func removeFromProxyRulesIPv4() error {
-	if err := route.DeleteRule(netlink.FAMILY_V4, fromIngressProxyRule); err != nil && !errors.Is(err, syscall.ENOENT) {
+	if err := route.DeleteRule(sysabi.FamilyV4, fromIngressProxyRule); err != nil && !errors.Is(err, syscall.ENOENT) {
 		return fmt.Errorf("removing ipv4 from ingress proxy routing rule: %w", err)
 	}
-	if err := route.DeleteRule(netlink.FAMILY_V4, fromEgressProxyRule); err != nil && !errors.Is(err, syscall.ENOENT) {
+	if err := route.DeleteRule(sysabi.FamilyV4, fromEgressProxyRule); err != nil && !errors.Is(err, syscall.ENOENT) {
 		return fmt.Errorf("removing ipv4 from egress proxy routing rule: %w", err)
 	}
 
@@ -360,12 +360,12 @@ func installFromProxyRoutesIPv6(
 
 // removeFromProxyRulesIPv6 ensures routes and rules for traffic from the proxy are removed.
 func removeFromProxyRulesIPv6() error {
-	if err := route.DeleteRule(netlink.FAMILY_V6, fromIngressProxyRule); err != nil {
+	if err := route.DeleteRule(sysabi.FamilyV6, fromIngressProxyRule); err != nil {
 		if !errors.Is(err, syscall.ENOENT) && !errors.Is(err, syscall.EAFNOSUPPORT) {
 			return fmt.Errorf("removing ipv6 from ingress proxy routing rule: %w", err)
 		}
 	}
-	if err := route.DeleteRule(netlink.FAMILY_V6, fromEgressProxyRule); err != nil {
+	if err := route.DeleteRule(sysabi.FamilyV6, fromEgressProxyRule); err != nil {
 		if !errors.Is(err, syscall.ENOENT) && !errors.Is(err, syscall.EAFNOSUPPORT) {
 			return fmt.Errorf("removing ipv6 from egress proxy routing rule: %w", err)
 		}

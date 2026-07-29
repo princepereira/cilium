@@ -16,7 +16,9 @@
 // This API is what cilium has been using prior to the 1.14 release and will continue to use if
 // bpf_link is not available.
 // On upgrade, cilium will continue to seamlessly replace old programs with the PROG_ATTACH API,
-// because updating it with a bpf_link could cause connectivity interruptions.
+// PROG_ATTACH without flags will be seamlessly replaced.
+
+//go:build linux
 
 package socketlb
 

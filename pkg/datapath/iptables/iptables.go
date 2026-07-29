@@ -44,6 +44,7 @@ import (
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/node"
 	"github.com/cilium/cilium/pkg/option"
+	"github.com/cilium/cilium/pkg/sysabi"
 	"github.com/cilium/cilium/pkg/time"
 	"github.com/cilium/cilium/pkg/versioncheck"
 	wgTypes "github.com/cilium/cilium/pkg/wireguard/types"
@@ -1519,9 +1520,9 @@ func (m *manager) installMasqueradeRules(
 		if len(m.sharedCfg.MasqueradeInterfaces) > 0 {
 			devices = m.sharedCfg.MasqueradeInterfaces
 		}
-		family := netlink.FAMILY_V4
+		family := sysabi.FamilyV4
 		if prog == m.ip6tables {
-			family = netlink.FAMILY_V6
+			family = sysabi.FamilyV6
 		}
 		if routes, err := safenetlink.RouteList(nil, family); err == nil {
 			if err := m.installMasqueradeRouteSourceRules(prog, routes, netlink.LinkByIndex, devices, snatDstExclusionCIDR, allocRange); err != nil {

@@ -15,13 +15,14 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/cilium/cilium/pkg/sysabi"
 	"github.com/vishvananda/netlink"
 	"go4.org/netipx"
-	"golang.org/x/sys/unix"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
+	"syscall"
 
 	alibabaCloudTypes "github.com/cilium/cilium/pkg/alibabacloud/types"
 	azureTypes "github.com/cilium/cilium/pkg/azure/types"
@@ -424,10 +425,10 @@ func (n *nodeStore) updateLocalNodeResource(node *ciliumv2.CiliumNode) {
 
 					err := netlink.RouteDel(&netlink.Route{
 						Dst:   &net.IPNet{IP: parsedIP, Mask: net.CIDRMask(32, 32)},
-						Table: unix.RT_TABLE_MAIN,
-						Type:  unix.RTN_UNREACHABLE,
+						Table: sysabi.RTTableMain,
+						Type:  sysabi.RTNUnreachable,
 					})
-					if err != nil && !errors.Is(err, unix.ESRCH) {
+					if err != nil && !errors.Is(err, syscall.ESRCH) {
 						// We ignore ESRCH, as it means the entry was already deleted
 						n.logger.Warn("Unable to delete unreachable route for IP", logfields.IPAddr, ip)
 						continue
