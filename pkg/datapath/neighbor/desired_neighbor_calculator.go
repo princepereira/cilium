@@ -10,13 +10,13 @@ import (
 	"iter"
 	"net/netip"
 	"slices"
+	"syscall"
 
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/job"
 	"github.com/cilium/statedb"
 	"github.com/cilium/statedb/reconciler"
 	"github.com/vishvananda/netlink"
-	"golang.org/x/sys/unix"
 
 	"github.com/cilium/cilium/pkg/datapath/tables"
 	"github.com/cilium/cilium/pkg/rate"
@@ -258,7 +258,7 @@ func (c *desiredNeighborCalculator) getNextHopIP(fip netip.Addr, ifindex int) (n
 		OifIndex: ifindex,
 		FIBMatch: true,
 	})
-	if err != nil && !errors.Is(err, unix.EHOSTUNREACH) && !errors.Is(err, unix.ENETUNREACH) {
+	if err != nil && !errors.Is(err, syscall.EHOSTUNREACH) && !errors.Is(err, syscall.ENETUNREACH) {
 		return netip.Addr{}, fmt.Errorf("failed to retrieve route for remote node IP: %w", err)
 	}
 	if len(routes) == 0 {

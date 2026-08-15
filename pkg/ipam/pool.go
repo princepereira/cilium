@@ -10,6 +10,7 @@ import (
 	"maps"
 	"net/netip"
 	"slices"
+	"syscall"
 
 	"github.com/vishvananda/netlink"
 	"go4.org/netipx"
@@ -406,7 +407,7 @@ func cleanupUnreachableRoutes(prefix netip.Prefix) error {
 		}
 
 		err = netlink.RouteDel(&route)
-		if err != nil && !errors.Is(err, unix.ESRCH) {
+		if err != nil && !errors.Is(err, syscall.ESRCH) {
 			// We ignore ESRCH, as it means the entry was already deleted
 			errs = errors.Join(errs, fmt.Errorf("failed to delete unreachable route for %s: %w",
 				route.Dst.String(), err),

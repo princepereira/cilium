@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"syscall"
 
 	cniInvoke "github.com/containernetworking/cni/pkg/invoke"
 	"github.com/containernetworking/cni/pkg/skel"
@@ -867,7 +868,7 @@ func (cmd *Cmd) Add(args *skel.CmdArgs) (err error) {
 			cookie, err = netns.GetNetNSCookie()
 			return err
 		}); err != nil {
-			if errors.Is(err, unix.ENOPROTOOPT) {
+			if errors.Is(err, syscall.ENOPROTOOPT) {
 				getNetnsCookie = false
 			}
 			scopedLogger.Info(

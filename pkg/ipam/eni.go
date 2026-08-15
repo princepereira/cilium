@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strconv"
 	"sync"
+	"syscall"
 
 	"github.com/cilium/hive/job"
 	"github.com/vishvananda/netlink"
@@ -445,7 +446,7 @@ func configureENINetlinkDevice(link netlink.Link, cfg eniDeviceConfig, sysctl sy
 		err := netlink.AddrAdd(link, &netlink.Addr{
 			IPNet: netipx.PrefixIPNet(netip.PrefixFrom(cfg.ip, cfg.cidr.Bits())),
 		})
-		if err != nil && !errors.Is(err, unix.EEXIST) {
+		if err != nil && !errors.Is(err, syscall.EEXIST) {
 			return fmt.Errorf("failed to set eni primary ip address %q on link %q: %w", cfg.ip, link.Attrs().Name, err)
 		}
 
@@ -459,7 +460,7 @@ func configureENINetlinkDevice(link netlink.Link, cfg eniDeviceConfig, sysctl sy
 			Table: unix.RT_TABLE_MAIN,
 			Scope: netlink.SCOPE_LINK,
 		})
-		if err != nil && !errors.Is(err, unix.ESRCH) {
+		if err != nil && !errors.Is(err, syscall.ESRCH) {
 			// We ignore ESRCH, as it means the entry was already deleted
 			return fmt.Errorf("failed to delete default route %q on link %q: %w", cfg.ip, link.Attrs().Name, err)
 		}

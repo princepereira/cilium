@@ -11,10 +11,10 @@ import (
 	"path/filepath"
 
 	ciliumebpf "github.com/cilium/ebpf"
-	"golang.org/x/sys/unix"
 
 	"github.com/cilium/cilium/api/v1/models"
 	"github.com/cilium/cilium/pkg/bpf"
+	"github.com/cilium/cilium/pkg/bpf/mapflags"
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/metrics"
@@ -147,7 +147,7 @@ func (m *Map) OpenOrCreate() error {
 		// recreation without the flag, since BPF programs need write access.
 		if existing, err := ciliumebpf.LoadPinnedMap(path, nil); err == nil {
 			if info, err := existing.Info(); err == nil {
-				const bpfFRdonlyProg = unix.BPF_F_RDONLY_PROG
+				const bpfFRdonlyProg = mapflags.BPF_F_RDONLY_PROG
 				switch {
 				case m.spec.Flags&bpfFRdonlyProg != 0 && info.Flags&bpfFRdonlyProg == 0:
 					// Upgrade: strip flag from spec to reuse existing map.

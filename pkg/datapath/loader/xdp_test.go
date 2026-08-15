@@ -9,8 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/sys/unix"
-
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/hive/hivetest"
@@ -19,6 +17,7 @@ import (
 	"github.com/vishvananda/netlink"
 
 	"github.com/cilium/cilium/pkg/bpf"
+	"github.com/cilium/cilium/pkg/bpf/mapflags"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/testutils"
 	"github.com/cilium/cilium/pkg/testutils/netns"
@@ -190,8 +189,8 @@ func TestXDPPermutations(t *testing.T) {
 	}{
 		{attachType: ebpf.AttachNone, flags: 0},
 		{attachType: ebpf.AttachXDP, flags: 0},
-		{attachType: ebpf.AttachXDP, flags: unix.BPF_F_XDP_HAS_FRAGS},
-		{attachType: ebpf.AttachNone, flags: unix.BPF_F_XDP_HAS_FRAGS},
+		{attachType: ebpf.AttachXDP, flags: mapflags.BPF_F_XDP_HAS_FRAGS},
+		{attachType: ebpf.AttachNone, flags: mapflags.BPF_F_XDP_HAS_FRAGS},
 	}
 
 	next, stop := iter.Pull2(xdpPermutations(spec))

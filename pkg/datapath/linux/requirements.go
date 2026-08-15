@@ -7,11 +7,11 @@ import (
 	"errors"
 	"log/slog"
 	"os"
+	"syscall"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 	"github.com/vishvananda/netlink"
-	"golang.org/x/sys/unix"
 
 	"github.com/cilium/cilium/pkg/datapath/linux/probes"
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
@@ -23,7 +23,7 @@ import (
 // configuring the BPF datapath.
 func CheckRequirements(log *slog.Logger) error {
 	_, err := safenetlink.RuleList(netlink.FAMILY_V4)
-	if errors.Is(err, unix.EAFNOSUPPORT) {
+	if errors.Is(err, syscall.EAFNOSUPPORT) {
 		log.Error("Policy routing:NOT OK. "+
 			"Please enable kernel configuration item CONFIG_IP_MULTIPLE_TABLES",
 			logfields.Error, err,

@@ -104,17 +104,17 @@ func listenConfig(mark uint32, ipFamily ipfamily.IPFamily) *net.ListenConfig {
 					return
 				}
 				if mark != 0 {
-					if err := unix.SetsockoptUint64(int(fd), unix.SOL_SOCKET, unix.SO_MARK, uint64(mark)); err != nil {
+					if err := unix.SetsockoptUint64(int(fd), syscall.SOL_SOCKET, unix.SO_MARK, uint64(mark)); err != nil {
 						opErr = fmt.Errorf("setsockopt(SO_MARK) failed: %w", err)
 						return
 					}
 				}
-				if err := unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEADDR, 1); err != nil {
+				if err := unix.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1); err != nil {
 					opErr = fmt.Errorf("setsockopt(SO_REUSEADDR) failed: %w", err)
 					return
 				}
 				if !option.Config.EnableBPFTProxy {
-					if err := unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEPORT, 1); err != nil {
+					if err := unix.SetsockoptInt(int(fd), syscall.SOL_SOCKET, unix.SO_REUSEPORT, 1); err != nil {
 						opErr = fmt.Errorf("setsockopt(SO_REUSEPORT) failed: %w", err)
 						return
 					}

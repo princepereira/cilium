@@ -7,11 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"syscall"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/link"
-	"golang.org/x/sys/unix"
 )
 
 // HaveAttachCgroup returns nil if the kernel is compiled with
@@ -44,7 +44,7 @@ var HaveAttachCgroup = sync.OnceValue(func() error {
 	// link, compared to EINVAL if the kernel does not support or was compiled
 	// without CONFIG_CGROUP_BPF.
 	_, err = link.AttachCgroup(link.CgroupOptions{Path: "/dev/null", Program: p, Attach: spec.AttachType})
-	if errors.Is(err, unix.EBADF) {
+	if errors.Is(err, syscall.EBADF) {
 		// The kernel checked the given file descriptor from within the cgroup prog
 		// attach handler. Assume it supports attaching cgroup progs.
 		return nil

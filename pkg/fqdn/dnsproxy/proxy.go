@@ -824,7 +824,7 @@ func (p *DNSProxy) CheckAllowed(endpointID uint64, destPortProto restore.PortPro
 func setSoMarks(fd int, ipFamily ipfamily.IPFamily, secId identity.NumericIdentity) error {
 	// Set SO_MARK to allow datapath to know these upstream packets from an egress proxy
 	mark := linux_defaults.MakeMagicMark(linux_defaults.MagicMarkEgress, secId)
-	err := unix.SetsockoptUint64(fd, unix.SOL_SOCKET, unix.SO_MARK, uint64(mark))
+	err := unix.SetsockoptUint64(fd, syscall.SOL_SOCKET, unix.SO_MARK, uint64(mark))
 	if err != nil {
 		return fmt.Errorf("error setting SO_MARK: %w", err)
 	}
@@ -844,7 +844,7 @@ func setSoMarks(fd int, ipFamily ipfamily.IPFamily, secId identity.NumericIdenti
 	// connection but the client issues new requests re-using its source port. In that case we
 	// need to be able to reuse the address likely very soon after the prior close, which may
 	// not be allowed without this option.
-	if err := unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEADDR, 1); err != nil {
+	if err := unix.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1); err != nil {
 		return fmt.Errorf("setsockopt(SO_REUSEADDR) failed: %w", err)
 	}
 
@@ -856,7 +856,7 @@ func setSoMarks(fd int, ipFamily ipfamily.IPFamily, secId identity.NumericIdenti
 	// strive to avoid that situation. This may be helpful in avoiding bind errors in some cases
 	// regardless.
 	if !option.Config.EnableBPFTProxy {
-		if err := unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEPORT, 1); err != nil {
+		if err := unix.SetsockoptInt(int(fd), syscall.SOL_SOCKET, unix.SO_REUSEPORT, 1); err != nil {
 			return fmt.Errorf("setsockopt(SO_REUSEPORT) failed: %w", err)
 		}
 	}
@@ -869,7 +869,7 @@ func setSoMarks(fd int, ipFamily ipfamily.IPFamily, secId identity.NumericIdenti
 	// Note that the linger timeout can also be set to 0, in which case the socket is
 	// terminated forcefully with a TCP RST and thus can also be reused immediately.
 	if linger := option.Config.DNSProxySocketLingerTimeout; linger >= 0 {
-		err = unix.SetsockoptLinger(fd, unix.SOL_SOCKET, unix.SO_LINGER, &unix.Linger{
+		err = unix.SetsockoptLinger(fd, syscall.SOL_SOCKET, unix.SO_LINGER, &unix.Linger{
 			Onoff:  1,
 			Linger: int32(linger),
 		})

@@ -353,11 +353,11 @@ func dial(tb testing.TB, network string, addr string) (net.Conn, error) {
 
 	switch network {
 	case "tcp", "tcp6":
-		sockType = unix.SOCK_STREAM
-		proto = unix.IPPROTO_TCP
+		sockType = syscall.SOCK_STREAM
+		proto = syscall.IPPROTO_TCP
 	case "udp", "udp6":
-		sockType = unix.SOCK_DGRAM
-		proto = unix.IPPROTO_UDP
+		sockType = syscall.SOCK_DGRAM
+		proto = syscall.IPPROTO_UDP
 	}
 
 	addrPort := netip.MustParseAddrPort(addr)
@@ -366,7 +366,7 @@ func dial(tb testing.TB, network string, addr string) (net.Conn, error) {
 
 	// can't use net.Dial(), as it doesn't support AF_INET6 for a v4-in-v6 address
 	if a.Is4() {
-		fd, err = unix.Socket(unix.AF_INET, sockType, proto)
+		fd, err = unix.Socket(syscall.AF_INET, sockType, proto)
 		if err != nil {
 			return nil, fmt.Errorf("Failed to create AF_INET socket: %w", err)
 		}
@@ -377,7 +377,7 @@ func dial(tb testing.TB, network string, addr string) (net.Conn, error) {
 		}
 		sa = sa4
 	} else {
-		fd, err = unix.Socket(unix.AF_INET6, sockType, proto)
+		fd, err = unix.Socket(syscall.AF_INET6, sockType, proto)
 		if err != nil {
 			return nil, fmt.Errorf("Failed to create AF_INET6 socket: %w", err)
 		}
@@ -434,7 +434,7 @@ func prepareConnectionsAndMaps(t *testing.T, servers map[string][]string, sdt so
 			}
 			var cookie uint64
 			rawConn.Control(func(fd uintptr) {
-				cookie, err = unix.GetsockoptUint64(int(fd), unix.SOL_SOCKET, unix.SO_COOKIE)
+				cookie, err = unix.GetsockoptUint64(int(fd), syscall.SOL_SOCKET, unix.SO_COOKIE)
 			})
 			if err != nil {
 				return nil, fmt.Errorf("getting socket cookie: %w", err)
@@ -494,8 +494,8 @@ func TestPrivilegedSocketDestroyers(t *testing.T) {
 			filter: SocketFilter{
 				DestIp:   netip.MustParseAddr("127.0.0.1"),
 				DestPort: 8888,
-				Family:   unix.AF_INET,
-				Protocol: unix.IPPROTO_UDP,
+				Family:   syscall.AF_INET,
+				Protocol: syscall.IPPROTO_UDP,
 				States:   StateFilterUDP,
 			},
 			expectUDPClose: []string{
@@ -506,8 +506,8 @@ func TestPrivilegedSocketDestroyers(t *testing.T) {
 			filter: SocketFilter{
 				DestIp:   netip.MustParseAddr("127.0.0.1"),
 				DestPort: 8888,
-				Family:   unix.AF_INET,
-				Protocol: unix.IPPROTO_TCP,
+				Family:   syscall.AF_INET,
+				Protocol: syscall.IPPROTO_TCP,
 				States:   StateFilterTCP,
 			},
 			expectTCPClose: []string{
@@ -518,8 +518,8 @@ func TestPrivilegedSocketDestroyers(t *testing.T) {
 			filter: SocketFilter{
 				DestIp:   netip.IPv6Loopback(),
 				DestPort: 8888,
-				Family:   unix.AF_INET6,
-				Protocol: unix.IPPROTO_UDP,
+				Family:   syscall.AF_INET6,
+				Protocol: syscall.IPPROTO_UDP,
 				States:   StateFilterUDP,
 			},
 			expectUDPClose: []string{
@@ -530,8 +530,8 @@ func TestPrivilegedSocketDestroyers(t *testing.T) {
 			filter: SocketFilter{
 				DestIp:   netip.IPv6Loopback(),
 				DestPort: 8888,
-				Family:   unix.AF_INET6,
-				Protocol: unix.IPPROTO_TCP,
+				Family:   syscall.AF_INET6,
+				Protocol: syscall.IPPROTO_TCP,
 				States:   StateFilterTCP,
 			},
 			expectTCPClose: []string{
@@ -542,8 +542,8 @@ func TestPrivilegedSocketDestroyers(t *testing.T) {
 			filter: SocketFilter{
 				DestIp:   netip.MustParseAddr("127.0.0.1"),
 				DestPort: 8890,
-				Family:   unix.AF_INET,
-				Protocol: unix.IPPROTO_UDP,
+				Family:   syscall.AF_INET,
+				Protocol: syscall.IPPROTO_UDP,
 				States:   StateFilterUDP,
 			},
 			expectUDPClose: []string{
@@ -554,8 +554,8 @@ func TestPrivilegedSocketDestroyers(t *testing.T) {
 			filter: SocketFilter{
 				DestIp:   netip.MustParseAddr("127.0.0.1"),
 				DestPort: 8890,
-				Family:   unix.AF_INET,
-				Protocol: unix.IPPROTO_TCP,
+				Family:   syscall.AF_INET,
+				Protocol: syscall.IPPROTO_TCP,
 				States:   StateFilterTCP,
 			},
 			expectTCPClose: []string{
@@ -634,8 +634,8 @@ func BenchmarkDestroyers(b *testing.B) {
 				require.NoError(b, sockDestroyer.Destroy(log, SocketFilter{
 					DestIp:   netip.MustParseAddr("127.0.0.1"),
 					DestPort: 8888,
-					Family:   unix.AF_INET,
-					Protocol: unix.IPPROTO_UDP,
+					Family:   syscall.AF_INET,
+					Protocol: syscall.IPPROTO_UDP,
 				}))
 			}
 		})
@@ -654,7 +654,7 @@ func TestPrivilegedIterateCallbackError(t *testing.T) {
 
 	stopErr := errors.New("stop socket iteration")
 	found := false
-	err = Iterate(unix.IPPROTO_UDP, unix.AF_INET, StateFilterUDP, func(sock *netlink.Socket, err error) error {
+	err = Iterate(syscall.IPPROTO_UDP, syscall.AF_INET, StateFilterUDP, func(sock *netlink.Socket, err error) error {
 		if err != nil {
 			return err
 		}
@@ -690,7 +690,7 @@ func TestPrivilegedFilterAndDestroySocketsNetlinkError(t *testing.T) {
 	done := make(chan result, 1)
 	go func() {
 		res := result{}
-		res.err = filterAndDestroySockets(invalidFamily, unix.IPPROTO_UDP, StateFilterUDP, func(socket netlink.SocketID, err error) {
+		res.err = filterAndDestroySockets(invalidFamily, syscall.IPPROTO_UDP, StateFilterUDP, func(socket netlink.SocketID, err error) {
 			res.callbackCalls++
 			res.socket = socket
 			res.callbackErr = err
@@ -700,8 +700,8 @@ func TestPrivilegedFilterAndDestroySocketsNetlinkError(t *testing.T) {
 
 	select {
 	case res := <-done:
-		require.ErrorIs(t, res.err, unix.EINVAL)
-		require.ErrorIs(t, res.callbackErr, unix.EINVAL)
+		require.ErrorIs(t, res.err, syscall.EINVAL)
+		require.ErrorIs(t, res.callbackErr, syscall.EINVAL)
 		require.Equal(t, netlink.SocketID{}, res.socket)
 		require.Equal(t, 1, res.callbackCalls)
 	case <-time.After(5 * time.Second):

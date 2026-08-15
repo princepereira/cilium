@@ -178,7 +178,7 @@ func GetAppPods(apps []string, namespace string, kubectl *Kubectl, appFmt string
 // directly from test code to assist troubleshooting and test development.
 func HoldEnvironment(description ...string) {
 	test := ginkgo.CurrentGinkgoTestDescription()
-	pid := unix.Getpid()
+	pid := os.Getpid()
 
 	fmt.Fprintf(os.Stdout, "\n---\n%s", test.FullTestText)
 	fmt.Fprintf(os.Stdout, "\nat %s:%d", test.FileName, test.LineNumber)

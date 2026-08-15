@@ -9,13 +9,13 @@ import (
 	"fmt"
 	"iter"
 	"net"
+	"syscall"
 
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/job"
 	"github.com/cilium/statedb"
 	"github.com/cilium/statedb/reconciler"
 	"github.com/vishvananda/netlink"
-	"golang.org/x/sys/unix"
 
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
 	"github.com/cilium/cilium/pkg/datapath/tables"
@@ -142,7 +142,7 @@ func (ops *ops) Update(ctx context.Context, rx statedb.ReadTxn, _ statedb.Revisi
 		}
 		if err := ops.funcsGetter.Get().NeighSet(&neighInit); err != nil {
 			// EINVAL is expected (see above)
-			if errors.Is(err, unix.EINVAL) {
+			if errors.Is(err, syscall.EINVAL) {
 				return nil
 			}
 
@@ -176,7 +176,7 @@ func (ops *ops) Delete(ctx context.Context, rx statedb.ReadTxn, _ statedb.Revisi
 		HardwareAddr: nil,
 	})
 	if err != nil {
-		if errors.Is(err, unix.ENOENT) {
+		if errors.Is(err, syscall.ENOENT) {
 			// The neighbor entry was already deleted
 			return nil
 		}
@@ -214,7 +214,7 @@ func (ops *ops) Prune(ctx context.Context, rx statedb.ReadTxn, _ iter.Seq2[*Desi
 			HardwareAddr: nil,
 		})
 		if err != nil {
-			if errors.Is(err, unix.ENOENT) {
+			if errors.Is(err, syscall.ENOENT) {
 				// The neighbor entry was already deleted
 				continue
 			}

@@ -115,7 +115,7 @@ func setsockoptReusePort(network, address string, c syscall.RawConn) error {
 	var soerr error
 	if err := c.Control(func(su uintptr) {
 		s := int(su)
-		if err := unix.SetsockoptInt(s, unix.SOL_SOCKET, unix.SO_REUSEPORT, 1); err != nil {
+		if err := unix.SetsockoptInt(s, syscall.SOL_SOCKET, unix.SO_REUSEPORT, 1); err != nil {
 			soerr = fmt.Errorf("failed to setsockopt(SO_REUSEPORT): %w", err)
 		}
 	}); err != nil {

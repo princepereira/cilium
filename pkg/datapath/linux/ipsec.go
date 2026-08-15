@@ -11,10 +11,10 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"syscall"
 
 	"github.com/vishvananda/netlink"
 	"go4.org/netipx"
-	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/cilium/cilium/pkg/datapath/linux/ipsec"
@@ -773,7 +773,7 @@ func (n *linuxNodeHandler) removeDecryptRules() error {
 
 	rule.Mark = linux_defaults.RouteMarkDecrypt
 	if err := route.DeleteRule(netlink.FAMILY_V6, rule); err != nil {
-		if !os.IsNotExist(err) && !errors.Is(err, unix.EAFNOSUPPORT) {
+		if !os.IsNotExist(err) && !errors.Is(err, syscall.EAFNOSUPPORT) {
 			return fmt.Errorf("delete previous IPv6 decrypt rule failed: %w", err)
 		}
 	}

@@ -14,6 +14,7 @@ import (
 	"reflect"
 	"strconv"
 	"sync"
+	"syscall"
 
 	"github.com/vishvananda/netlink"
 	"go4.org/netipx"
@@ -429,7 +430,7 @@ func (n *nodeStore) updateLocalNodeResource(node *ciliumv2.CiliumNode) {
 						Table: unix.RT_TABLE_MAIN,
 						Type:  unix.RTN_UNREACHABLE,
 					})
-					if err != nil && !errors.Is(err, unix.ESRCH) {
+					if err != nil && !errors.Is(err, syscall.ESRCH) {
 						// We ignore ESRCH, as it means the entry was already deleted
 						n.logger.Warn("Unable to delete unreachable route for IP", logfields.IPAddr, ip)
 						continue

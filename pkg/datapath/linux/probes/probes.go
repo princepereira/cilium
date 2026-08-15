@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"syscall"
 	"text/template"
 
 	"github.com/cilium/ebpf"
@@ -308,7 +309,7 @@ var HaveNetkit = sync.OnceValue(func() error {
 		// We rely on this being checked during the syscall. With
 		// an otherwise correct payload we expect ENODEV here as
 		// an indication that the feature is present.
-		if errors.Is(err, unix.ENODEV) {
+		if errors.Is(err, syscall.ENODEV) {
 			return nil
 		}
 		if err != nil {
@@ -550,8 +551,8 @@ func HaveDeadCodeElim() error {
 // also implicitly auto-load IPv6 kernel module if available and not yet
 // loaded.
 func HaveIPv6Support() error {
-	fd, err := unix.Socket(unix.AF_INET6, unix.SOCK_STREAM, 0)
-	if errors.Is(err, unix.EAFNOSUPPORT) || errors.Is(err, unix.EPROTONOSUPPORT) {
+	fd, err := unix.Socket(syscall.AF_INET6, syscall.SOCK_STREAM, 0)
+	if errors.Is(err, syscall.EAFNOSUPPORT) || errors.Is(err, syscall.EPROTONOSUPPORT) {
 		return ErrNotSupported
 	}
 	unix.Close(fd)

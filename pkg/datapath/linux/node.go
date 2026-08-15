@@ -282,7 +282,7 @@ func (n *linuxNodeHandler) updateDirectRoutes(oldCIDRs, newCIDRs []netip.Prefix,
 			// Thus we are ignoring the error here for now.
 			//
 			// TODO(Tom): In the future we will want to avoid attempting to do the update if we know it will fail.
-			if newIP == nil && errors.Is(err, unix.ERANGE) {
+			if newIP == nil && errors.Is(err, syscall.ERANGE) {
 				return nil
 			}
 			return err

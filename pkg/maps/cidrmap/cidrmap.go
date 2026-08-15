@@ -11,9 +11,9 @@ import (
 	"unsafe"
 
 	"github.com/cilium/ebpf"
-	"golang.org/x/sys/unix"
 
 	"github.com/cilium/cilium/pkg/bpf"
+	"github.com/cilium/cilium/pkg/bpf/mapflags"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 )
 
@@ -175,7 +175,7 @@ func OpenMapElems(logger *slog.Logger, pinPath string, prefixlen int, prefixdyn 
 		KeySize:    uint32(unsafe.Sizeof(uint32(0)) + uintptr(bytes)),
 		ValueSize:  uint32(LPM_MAP_VALUE_SIZE),
 		MaxEntries: maxelem,
-		Flags:      unix.BPF_F_NO_PREALLOC | unix.BPF_F_RDONLY_PROG,
+		Flags:      mapflags.BPF_F_NO_PREALLOC | mapflags.BPF_F_RDONLY_PROG,
 		Pinning:    ebpf.PinByName,
 	}, path.Dir(pinPath))
 

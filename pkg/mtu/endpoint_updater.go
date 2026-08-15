@@ -17,6 +17,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"syscall"
 
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/job"
@@ -263,7 +264,7 @@ func (emu *endpointUpdater) updateEndpoints(routeMTUs []RouteMTU) error {
 			// to do syscalls for the switching. If the netns is deleted between the time we open it and
 			// the time of calling ns.Do, we get an -EINVAL error, since the file descriptor is no longer valid.
 			// We ignore this error, since it means the netns and thus the endpoint was deleted.
-			if errors.Is(err, unix.EINVAL) {
+			if errors.Is(err, syscall.EINVAL) {
 				continue
 			}
 

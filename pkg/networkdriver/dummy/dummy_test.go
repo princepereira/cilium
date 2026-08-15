@@ -11,12 +11,12 @@ package dummy
 
 import (
 	"errors"
+	"syscall"
 	"testing"
 
 	"github.com/cilium/hive/hivetest"
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netlink"
-	"golang.org/x/sys/unix"
 	resourceapi "k8s.io/api/resource/v1"
 
 	"github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2alpha1"
@@ -231,7 +231,7 @@ func TestSetup(t *testing.T) {
 
 	t.Run("EEXIST with existing dummy link adopts it", func(t *testing.T) {
 		patchNetlink(t,
-			func(_ netlink.Link) error { return unix.EEXIST },
+			func(_ netlink.Link) error { return syscall.EEXIST },
 			func(name string) (netlink.Link, error) { return dummyLink(name), nil },
 			nil,
 		)
@@ -246,7 +246,7 @@ func TestSetup(t *testing.T) {
 			func(_ netlink.Link) error {
 				addCount++
 				if addCount == 1 {
-					return unix.EEXIST
+					return syscall.EEXIST
 				}
 				return nil
 			},
@@ -262,7 +262,7 @@ func TestSetup(t *testing.T) {
 	t.Run("EEXIST with lookup failure returns error", func(t *testing.T) {
 		lookupErr := errors.New("link lookup failed")
 		patchNetlink(t,
-			func(_ netlink.Link) error { return unix.EEXIST },
+			func(_ netlink.Link) error { return syscall.EEXIST },
 			func(_ string) (netlink.Link, error) { return nil, lookupErr },
 			nil,
 		)
@@ -275,7 +275,7 @@ func TestSetup(t *testing.T) {
 	t.Run("EEXIST with delete failure returns error", func(t *testing.T) {
 		delErr := errors.New("delete failed")
 		patchNetlink(t,
-			func(_ netlink.Link) error { return unix.EEXIST },
+			func(_ netlink.Link) error { return syscall.EEXIST },
 			func(name string) (netlink.Link, error) { return vethLink(name), nil },
 			func(_ netlink.Link) error { return delErr },
 		)
@@ -292,7 +292,7 @@ func TestSetup(t *testing.T) {
 			func(_ netlink.Link) error {
 				addCount++
 				if addCount == 1 {
-					return unix.EEXIST
+					return syscall.EEXIST
 				}
 				return recreateErr
 			},
