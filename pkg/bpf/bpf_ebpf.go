@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Authors of Cilium
 
-//go:build linux
-
 package bpf
 
 import (
@@ -12,8 +10,8 @@ import (
 	"path"
 
 	"github.com/cilium/ebpf"
-	"golang.org/x/sys/unix"
 
+	"github.com/cilium/cilium/pkg/bpf/mapflags"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/metrics"
 	"github.com/cilium/cilium/pkg/spanstat"
@@ -69,7 +67,7 @@ func OpenOrCreateMap(logger *slog.Logger, spec *ebpf.MapSpec, pinDir string) (*e
 		pinPath := path.Join(pinDir, spec.Name)
 		if existing, err := ebpf.LoadPinnedMap(pinPath, nil); err == nil {
 			if info, err := existing.Info(); err == nil {
-				const bpfFRdonlyProg = unix.BPF_F_RDONLY_PROG
+				const bpfFRdonlyProg = mapflags.BPF_F_RDONLY_PROG
 				switch {
 				case spec.Flags&bpfFRdonlyProg != 0 && info.Flags&bpfFRdonlyProg == 0:
 					// Upgrade: strip flag from spec to reuse existing map.
@@ -120,20 +118,4 @@ func OpenOrCreateMap(logger *slog.Logger, spec *ebpf.MapSpec, pinDir string) (*e
 	}
 
 	return m, err
-}
-
-// GetMtime returns monotonic time that can be used to compare
-// values with ktime_get_ns() BPF helper, e.g. needed to check
-// the timeout in sec for BPF entries. We return the raw nsec,
-// although that is not quite usable for comparison. Go has
-// runtime.nanotime() but doesn't expose it as API.
-func GetMtime() (uint64, error) {
-	var ts unix.Timespec
-
-	err := unix.ClockGettime(unix.CLOCK_MONOTONIC, &ts)
-	if err != nil {
-		return 0, fmt.Errorf("Unable get time: %w", err)
-	}
-
-	return uint64(unix.TimespecToNsec(ts)), nil
 }
