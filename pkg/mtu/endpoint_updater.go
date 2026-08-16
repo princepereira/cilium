@@ -23,7 +23,6 @@ import (
 	"github.com/cilium/hive/job"
 	"github.com/cilium/statedb"
 	"github.com/vishvananda/netlink"
-	"golang.org/x/sys/unix"
 
 	"github.com/cilium/cilium/daemon/cmd/cni"
 	"github.com/cilium/cilium/pkg/backoff"
@@ -305,14 +304,14 @@ func defaultRouteHook(routeMTUs []RouteMTU) error {
 
 		netlink.LinkSetMTU(link, defaultRouteMTU.DeviceMTU)
 
-		routes, err := safenetlink.RouteList(link, netlink.FAMILY_ALL)
+		routes, err := safenetlink.RouteList(link, nlFamilyAll)
 		if err != nil {
 			return fmt.Errorf("netlink.RouteList failed: %w", err)
 		}
 
 		for _, rt := range routes {
 			switch rt.Family {
-			case netlink.FAMILY_V4, netlink.FAMILY_V6:
+			case nlFamilyV4, nlFamilyV6:
 			default:
 				continue
 			}
@@ -325,7 +324,7 @@ func defaultRouteHook(routeMTUs []RouteMTU) error {
 
 			// If the next hop is dead or next hop is carrier down, skip updating the route
 			// Attempting to do so would result in an error.
-			if rt.Flags&unix.RTNH_F_LINKDOWN != 0 || rt.Flags&unix.RTNH_F_DEAD != 0 {
+			if rt.Flags&rtnhFlagLinkDown != 0 || rt.Flags&rtnhFlagDead != 0 {
 				continue
 			}
 
@@ -417,9 +416,9 @@ func (emu *endpointUpdater) updateHealthEndpoint(routeMTUs []RouteMTU) error {
 func routeDstNetPrefix(rt netlink.Route) netip.Prefix {
 	var toIP netip.Addr
 	switch rt.Family {
-	case netlink.FAMILY_V4:
+	case nlFamilyV4:
 		toIP, _ = netip.AddrFromSlice(rt.Dst.IP.To4())
-	case netlink.FAMILY_V6:
+	case nlFamilyV6:
 		toIP, _ = netip.AddrFromSlice(rt.Dst.IP.To16())
 	}
 

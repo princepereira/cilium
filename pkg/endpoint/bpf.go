@@ -15,7 +15,6 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/google/renameio/v2"
 	"github.com/vishvananda/netlink"
 
 	"github.com/cilium/cilium/api/v1/models"
@@ -146,7 +145,7 @@ func (e *Endpoint) writeHeaderfile(prefix string) error {
 		return fmt.Errorf("failed to serialize state: %w", err)
 	}
 
-	state, err := renameio.TempFile(prefix, filepath.Join(prefix, common.EndpointStateFileName))
+	state, err := newAtomicFile(prefix, filepath.Join(prefix, common.EndpointStateFileName))
 	if err != nil {
 		return fmt.Errorf("failed to open temporary file: %w", err)
 	}
@@ -160,7 +159,7 @@ func (e *Endpoint) writeHeaderfile(prefix string) error {
 		return err
 	}
 
-	f, err := renameio.TempFile(prefix, headerPath)
+	f, err := newAtomicFile(prefix, headerPath)
 	if err != nil {
 		return fmt.Errorf("failed to open temporary file: %w", err)
 	}

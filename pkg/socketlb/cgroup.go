@@ -18,6 +18,8 @@
 // On upgrade, cilium will continue to seamlessly replace old programs with the PROG_ATTACH API,
 // because updating it with a bpf_link could cause connectivity interruptions.
 
+//go:build linux
+
 package socketlb
 
 import (

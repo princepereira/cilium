@@ -1519,9 +1519,9 @@ func (m *manager) installMasqueradeRules(
 		if len(m.sharedCfg.MasqueradeInterfaces) > 0 {
 			devices = m.sharedCfg.MasqueradeInterfaces
 		}
-		family := netlink.FAMILY_V4
+		family := nlFamilyV4
 		if prog == m.ip6tables {
-			family = netlink.FAMILY_V6
+			family = nlFamilyV6
 		}
 		if routes, err := safenetlink.RouteList(nil, family); err == nil {
 			if err := m.installMasqueradeRouteSourceRules(prog, routes, netlink.LinkByIndex, devices, snatDstExclusionCIDR, allocRange); err != nil {
