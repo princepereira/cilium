@@ -6,10 +6,8 @@ package signalmap
 import (
 	"fmt"
 	"log/slog"
-	"os"
 
 	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/perf"
 
 	"github.com/cilium/cilium/pkg/bpf"
 )
@@ -75,10 +73,6 @@ func (sm *signalMap) close() error {
 		return sm.ebpfMap.Close()
 	}
 	return nil
-}
-
-func (sm *signalMap) NewReader() (PerfReader, error) {
-	return perf.NewReader(sm.ebpfMap, os.Getpagesize())
 }
 
 func (sm *signalMap) MapName() string {
