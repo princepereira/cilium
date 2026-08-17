@@ -16,7 +16,6 @@ import (
 	"github.com/cilium/hive/job"
 	"github.com/cilium/statedb"
 	"github.com/cilium/statedb/reconciler"
-	"github.com/vishvananda/netlink"
 
 	"github.com/cilium/cilium/pkg/datapath/tables"
 	"github.com/cilium/cilium/pkg/rate"
@@ -254,7 +253,7 @@ func (c *desiredNeighborCalculator) getNextHopIP(fip netip.Addr, ifindex int) (n
 	c.Metrics.NexthopLookupCount.Inc()
 
 	// Figure out whether nodeIP is directly reachable (i.e. in the same L2)
-	routes, err := c.FuncsGetter.Get().RouteGetWithOptions(fip.AsSlice(), &netlink.RouteGetOptions{
+	routes, err := c.FuncsGetter.Get().RouteGetWithOptions(fip.AsSlice(), &routeGetOptions{
 		OifIndex: ifindex,
 		FIBMatch: true,
 	})
