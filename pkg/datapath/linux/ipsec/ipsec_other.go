@@ -52,3 +52,9 @@ func (noopCollector) Collect(chan<- prometheus.Metric) {}
 func NewXFRMCollector(log *slog.Logger) prometheus.Collector {
 	return noopCollector{}
 }
+
+// ProbeXfrmStateOutputMask is a no-op on non-Linux platforms where the
+// XFRM-based IPsec datapath is unavailable.
+func ProbeXfrmStateOutputMask() error {
+	return nil
+}
