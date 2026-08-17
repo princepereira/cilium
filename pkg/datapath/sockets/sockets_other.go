@@ -61,6 +61,22 @@ type SocketFilter struct {
 
 type DestroySocketCB func(id netlink.SocketID) bool
 
+// MatchSocket reports whether the given socket matches the filter. Mirrors the
+// Linux implementation so cross-platform consumers can reference it.
+func (f *SocketFilter) MatchSocket(socket netlink.SocketID) bool {
+	socketAddr, ok := netip.AddrFromSlice(socket.Destination)
+	if !ok {
+		return false
+	}
+	if socketAddr.Unmap() == f.DestIp.Unmap() && socket.DestinationPort == f.DestPort {
+		if f.DestroyCB == nil || f.DestroyCB(socket) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // disabledSocketDestroyer is a no-op [SocketDestroyer].
 type disabledSocketDestroyer struct{}
 
