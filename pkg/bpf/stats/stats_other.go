@@ -12,5 +12,5 @@ import "github.com/cilium/hive/cell"
 // TC filter listing, all of which are Linux-only.
 var Cell = cell.Module(
 	"bpf-stats",
-	"BPF Stats commands (no-op on non-Linux)",
+	"BPF Stats commands no-op on non-Linux",
 )

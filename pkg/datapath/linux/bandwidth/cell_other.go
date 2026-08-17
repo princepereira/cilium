@@ -11,5 +11,5 @@ import "github.com/cilium/hive/cell"
 // tc/EDT qdiscs via netlink, which is Linux-only.
 var Cell = cell.Module(
 	"bandwidth-manager",
-	"Linux Bandwidth Manager for EDT-based pacing (no-op on non-Linux)",
+	"Linux Bandwidth Manager for EDT-based pacing no-op on non-Linux",
 )

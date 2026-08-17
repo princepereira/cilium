@@ -26,7 +26,7 @@ import (
 // only available on Linux.
 var DevicesControllerCell = cell.Module(
 	"devices-controller",
-	"Manages the device and route tables (no-op on non-Linux)",
+	"Manages the device and route tables no-op on non-Linux",
 )
 
 // CheckRequirements is a no-op on non-Linux platforms.
