@@ -149,6 +149,14 @@ func newCiliumHealthManager(params ciliumHealthParams) CiliumHealthManager {
 }
 
 func (h *ciliumHealthManager) init(ctx context.Context) error {
+	// The cilium-health node daemon and endpoint rely on Linux network
+	// namespaces and veth devices. On platforms without them (e.g. Windows)
+	// skip health checking entirely instead of looping on failed launches.
+	if !healthEndpointSupported {
+		h.logger.Info("Cilium health checking is not supported on this platform, skipping")
+		return nil
+	}
+
 	// Launch cilium-health in the same process (and namespace) as cilium.
 	h.logger.Info("Launching Cilium health daemon")
 	ch, err := h.launchCiliumNodeHealth(ctx, h.healthSpec, h.loader.HostDatapathInitialized())

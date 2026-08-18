@@ -142,7 +142,8 @@ func (nopDecoder) UnmarshalBinary(data []byte) error {
 // Only usable for hash, lru-hash and lpm-trie maps.
 func (m *Map) BatchCount() (count int, err error) {
 	switch m.Type() {
-	case ebpf.Hash, ebpf.LRUHash, ebpf.LPMTrie:
+	case ebpf.Hash, ebpf.LRUHash, ebpf.LPMTrie,
+		ebpf.WindowsHash, ebpf.WindowsLRUHash, ebpf.WindowsLPMTrie:
 		break
 	default:
 		return 0, fmt.Errorf("unsupported map type %s, must be one either hash or lru-hash types", m.Type())
@@ -721,6 +722,19 @@ func (m *Map) NextKey(key, nextKeyOut any) error {
 	return err
 }
 
+// lookupRaw performs a lookup for key, storing the result into valueOut. Both
+// arguments are raw pointers to the map's key/value types. It is used by the
+// non-batch [BatchIterator] fallback on platforms without the BPF map batch API.
+func (m *Map) lookupRaw(key, valueOut any) error {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+
+	if m.m == nil {
+		return fmt.Errorf("lookup on closed map")
+	}
+	return m.m.Lookup(key, valueOut)
+}
+
 type DumpCallback func(key MapKey, value MapValue)
 
 // DumpWithCallback iterates over the Map and calls the given DumpCallback for
@@ -938,6 +952,11 @@ type IterableMap interface {
 	BatchLookup(cursor *ebpf.MapBatchCursor, keysOut, valuesOut any, opts *ebpf.BatchOptions) (int, error)
 	MaxEntries() uint32
 	Type() ebpf.MapType
+
+	// NextKey and lookupRaw are the per-key iteration primitives used by the
+	// non-batch fallback on platforms without the BPF map batch API.
+	NextKey(key, nextKeyOut any) error
+	lookupRaw(key, valueOut any) error
 }
 
 // BatchIterator provides a typed wrapper *Map that allows for batched iteration
@@ -1086,11 +1105,18 @@ func startingChunkSize(maxEntries int) int {
 // If the iteration fails, then the Err() function will return the error that caused the failure.
 func (bi *BatchIterator[KT, VT, KP, VP]) IterateAll(ctx context.Context, opts ...BatchIteratorOpt[KT, VT, KP, VP]) iter.Seq2[KP, VP] {
 	switch bi.m.Type() {
-	case ebpf.Hash, ebpf.LRUHash, ebpf.LPMTrie:
+	case ebpf.Hash, ebpf.LRUHash, ebpf.LPMTrie,
+		ebpf.WindowsHash, ebpf.WindowsLRUHash, ebpf.WindowsLPMTrie:
 		break
 	default:
 		bi.err = fmt.Errorf("unsupported map type %s, must be one either hash or lru-hash types", bi.m.Type())
 		return func(yield func(KP, VP) bool) {}
+	}
+
+	// On platforms without the BPF map batch API (e.g. eBPF-for-Windows), fall
+	// back to per-key iteration using NextKey/Lookup.
+	if !mapBatchAPISupported {
+		return bi.iterateNonBatch(ctx)
 	}
 
 	bi.chunkSize = startingChunkSize(int(bi.m.MaxEntries()))
@@ -1169,6 +1195,62 @@ func (bi *BatchIterator[KT, VT, KP, VP]) IterateAll(ctx context.Context, opts ..
 				}
 				break retry // finish retry loop for this batch.
 			}
+		}
+	}
+}
+
+// iterateNonBatch iterates the map one key at a time using NextKey + Lookup.
+// It is the fallback used by IterateAll on platforms that do not implement the
+// BPF map batch lookup API (e.g. eBPF-for-Windows). Unlike the batch path it
+// does not hold a lock across the whole iteration, so entries added or removed
+// concurrently may be missed; this matches the best-effort semantics expected
+// by the CT/NAT garbage collectors.
+func (bi *BatchIterator[KT, VT, KP, VP]) iterateNonBatch(ctx context.Context) iter.Seq2[KP, VP] {
+	bi.err = nil
+
+	return func(yield func(KP, VP) bool) {
+		var prevKey *KT
+
+		for {
+			if ctx.Err() != nil {
+				bi.err = ctx.Err()
+				return
+			}
+
+			var nextKey KT
+			var keyArg any
+			if prevKey != nil {
+				keyArg = KP(prevKey)
+			}
+
+			err := bi.m.NextKey(keyArg, KP(&nextKey))
+			if errors.Is(err, ebpf.ErrKeyNotExist) {
+				return
+			}
+			if err != nil {
+				bi.err = fmt.Errorf("failed to iterate map: %w", err)
+				return
+			}
+
+			var val VT
+			if err := bi.m.lookupRaw(KP(&nextKey), VP(&val)); err != nil {
+				// The key may have been deleted concurrently; skip it and
+				// continue from it so we make forward progress.
+				if errors.Is(err, ebpf.ErrKeyNotExist) {
+					k := nextKey
+					prevKey = &k
+					continue
+				}
+				bi.err = fmt.Errorf("failed to iterate map: %w", err)
+				return
+			}
+
+			if !yield(KP(&nextKey), VP(&val)) {
+				return
+			}
+
+			k := nextKey
+			prevKey = &k
 		}
 	}
 }
