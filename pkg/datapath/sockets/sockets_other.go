@@ -13,6 +13,7 @@ import (
 	"github.com/vishvananda/netlink"
 
 	"github.com/cilium/cilium/pkg/bpf"
+	"github.com/cilium/cilium/pkg/datapath/linux/probes"
 )
 
 // The real socket-termination datapath relies on the Linux sock_diag netlink
@@ -90,7 +91,9 @@ func NewSocketDestroyer(l *slog.Logger, sockRevNat4, sockRevNat6 *bpf.Map) (Sock
 }
 
 // InetDiagDestroyEnabled reports that inet_diag socket destruction is not
-// available on non-Linux platforms.
+// available on non-Linux platforms. It wraps [probes.ErrNotSupported] so callers
+// (e.g. the load-balancer socket-termination cell) degrade cleanly instead of
+// treating it as an unexpected probing failure.
 func InetDiagDestroyEnabled(logger *slog.Logger, probeTCP, probeUDP bool) error {
-	return fmt.Errorf("socket destruction via inet_diag is not supported on this platform")
+	return fmt.Errorf("socket destruction via inet_diag is not supported on this platform: %w", probes.ErrNotSupported)
 }

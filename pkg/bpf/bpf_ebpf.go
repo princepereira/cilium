@@ -23,6 +23,17 @@ func createMap(spec *ebpf.MapSpec, opts *ebpf.MapOptions) (*ebpf.Map, error) {
 		opts = &ebpf.MapOptions{}
 	}
 
+	// Translate Linux-tagged map types to the running platform's equivalent
+	// (identity on Linux, Linux->Windows mapping on Windows). Cilium's specs
+	// use the Linux ebpf.MapType constants, which cilium/ebpf rejects on the
+	// native Windows platform.
+	spec.Type = ToPlatformMapType(spec.Type)
+	spec.Flags = ToPlatformMapFlags(spec.Flags)
+	if spec.InnerMap != nil {
+		spec.InnerMap.Type = ToPlatformMapType(spec.InnerMap.Type)
+		spec.InnerMap.Flags = ToPlatformMapFlags(spec.InnerMap.Flags)
+	}
+
 	var duration *spanstat.SpanStat
 	if metrics.BPFSyscallDuration.IsEnabled() {
 		duration = spanstat.Start()

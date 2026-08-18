@@ -11,6 +11,7 @@ import (
 	"io"
 	"log/slog"
 	"net/netip"
+	"sync"
 
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/job"
@@ -90,8 +91,9 @@ type Params struct {
 
 // loader is a no-op datapath loader for non-Linux platforms.
 type loader struct {
-	logger            *slog.Logger
-	hostDpInitialized chan struct{}
+	logger                *slog.Logger
+	hostDpInitializedOnce sync.Once
+	hostDpInitialized     chan struct{}
 }
 
 // NewLoader returns a new no-op loader.
@@ -130,12 +132,23 @@ func (l *loader) EndpointHash(cfg endpoint.Config, lnCfg *config.Config) (string
 	return "", errUnsupported
 }
 
+// ReinitializeHostDev is a no-op on non-Linux platforms: the host datapath
+// devices are managed outside the BPF loader (eBPF-for-Windows programs are not
+// attached via this loader). It marks the host datapath as initialized so that
+// consumers waiting on HostDatapathInitialized (e.g. the health manager) can
+// proceed.
 func (l *loader) ReinitializeHostDev(ctx context.Context, mtu int) error {
-	return errUnsupported
+	l.hostDpInitializedOnce.Do(func() {
+		close(l.hostDpInitialized)
+	})
+	return nil
 }
 
+// Reinitialize is a no-op on non-Linux platforms. The base BPF datapath
+// (global programs, netfilter, route reservation) is not loaded via this loader
+// on Windows.
 func (l *loader) Reinitialize(ctx context.Context, cfg *config.Config, tunnelConfig tunnel.Config, iptMgr iptables.Manager, p proxy.Proxy, bigtcp bigtcp.Config) error {
-	return errUnsupported
+	return nil
 }
 
 func (l *loader) WriteEndpointConfig(w io.Writer, cfg endpoint.Config) error {

@@ -57,17 +57,6 @@ func initMap(logger *slog.Logger, maxEntries int) *signalMap {
 	}
 }
 
-func (sm *signalMap) open() error {
-	if err := sm.oldBpfMap.Create(); err != nil {
-		return err
-	}
-	path := bpf.MapPath(sm.logger, MapName)
-
-	var err error
-	sm.ebpfMap, err = ebpf.LoadPinnedMap(path, nil)
-	return err
-}
-
 func (sm *signalMap) close() error {
 	if sm.ebpfMap != nil {
 		return sm.ebpfMap.Close()

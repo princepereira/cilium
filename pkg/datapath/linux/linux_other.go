@@ -10,6 +10,7 @@ import (
 	"net"
 
 	"github.com/cilium/hive/cell"
+	"github.com/cilium/statedb"
 
 	"github.com/cilium/cilium/api/v1/models"
 	ipsecTypes "github.com/cilium/cilium/pkg/datapath/linux/ipsec/types"
@@ -19,14 +20,31 @@ import (
 	"github.com/cilium/cilium/pkg/node"
 	"github.com/cilium/cilium/pkg/node/manager"
 	nodeTypes "github.com/cilium/cilium/pkg/node/types"
+
+	"github.com/cilium/cilium/pkg/datapath/tables"
 )
 
 // DevicesControllerCell is a no-op on non-Linux platforms. The real
 // implementation relies on netlink route/address/link subscriptions that are
-// only available on Linux.
+// only available on Linux. It still owns and provides the device, route and
+// neighbor tables so that the rest of the object graph can be satisfied; on
+// non-Linux platforms these tables simply remain empty.
 var DevicesControllerCell = cell.Module(
 	"devices-controller",
 	"Manages the device and route tables no-op on non-Linux",
+
+	// The tables register themselves with the database on construction and
+	// stay empty since there is no netlink subscriber to populate them.
+	cell.ProvidePrivate(
+		tables.NewDeviceTable,
+		tables.NewRouteTable,
+		tables.NewNeighborTable,
+	),
+	cell.Provide(
+		statedb.RWTable[*tables.Device].ToTable,
+		statedb.RWTable[*tables.Route].ToTable,
+		statedb.RWTable[*tables.Neighbor].ToTable,
+	),
 )
 
 // CheckRequirements is a no-op on non-Linux platforms.

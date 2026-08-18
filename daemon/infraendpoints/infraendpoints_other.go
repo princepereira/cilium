@@ -22,8 +22,25 @@ type InfraIPAllocator interface {
 }
 
 // Cell is a no-op on non-Linux platforms where netlink-based infrastructure
-// endpoint setup is not available.
+// endpoint setup is not available. It still provides a no-op InfraIPAllocator
+// so the rest of the object graph can be satisfied.
 var Cell = cell.Module(
 	"agent-infra-endpoints",
 	"Cilium Agent infrastructure endpoints",
+
+	cell.Provide(newNoopInfraIPAllocator),
 )
+
+func newNoopInfraIPAllocator() InfraIPAllocator {
+	return &noopInfraIPAllocator{}
+}
+
+// noopInfraIPAllocator is a no-op implementation of InfraIPAllocator for
+// non-Linux platforms.
+type noopInfraIPAllocator struct{}
+
+var _ InfraIPAllocator = (*noopInfraIPAllocator)(nil)
+
+func (*noopInfraIPAllocator) AllocateIPs(ctx context.Context) error { return nil }
+
+func (*noopInfraIPAllocator) GetHealthEndpointRouting() *linuxrouting.RoutingInfo { return nil }

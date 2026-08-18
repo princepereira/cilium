@@ -164,6 +164,16 @@ func (m *Map) OpenOrCreate() error {
 	// Add memory flags after compatibility check
 	m.spec.Flags |= memoryFlags
 
+	// Translate Linux-tagged map types and drop Linux map flags on platforms
+	// (Windows) where eBPF-for-Windows uses distinct constants and rejects the
+	// Linux BPF_F_* flags. No-op on Linux.
+	m.spec.Type = bpf.ToPlatformMapType(m.spec.Type)
+	m.spec.Flags = bpf.ToPlatformMapFlags(m.spec.Flags)
+	if m.spec.InnerMap != nil {
+		m.spec.InnerMap.Type = bpf.ToPlatformMapType(m.spec.InnerMap.Type)
+		m.spec.InnerMap.Flags = bpf.ToPlatformMapFlags(m.spec.InnerMap.Flags)
+	}
+
 	newMap, err := ciliumebpf.NewMapWithOptions(m.spec, opts)
 	if err != nil {
 		if !errors.Is(err, ciliumebpf.ErrMapIncompatible) {
