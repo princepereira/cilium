@@ -14,12 +14,12 @@ import (
 	"sort"
 	"strings"
 	"sync/atomic"
+	"syscall"
 
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/job"
 	"github.com/cilium/statedb"
 	"github.com/cilium/statedb/reconciler"
-	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/cilium/cilium/pkg/byteorder"
@@ -1257,7 +1257,10 @@ func (ops *BPFOps) isDatapathCandidate(fe *loadbalancer.Frontend) bool {
 		return true
 	}
 
-	return false
+	// Platform-specific candidates when KPR is off. On Windows there is no
+	// kube-proxy to handle LoadBalancer VIPs, so the eBPF-for-Windows datapath
+	// must program them itself; on Linux this is a no-op.
+	return platformDatapathCandidate(fe)
 }
 
 func (ops *BPFOps) upsertService(svcKey maps.ServiceKey, svcVal maps.ServiceValue) error {
@@ -1266,7 +1269,7 @@ func (ops *BPFOps) upsertService(svcKey maps.ServiceKey, svcVal maps.ServiceValu
 	svcVal = svcVal.ToNetwork()
 
 	err = ops.LBMaps.UpdateService(svcKey, svcVal)
-	if errors.Is(err, unix.E2BIG) {
+	if errors.Is(err, syscall.E2BIG) {
 		return fmt.Errorf("Unable to update service entry %+v => %+v: "+
 			"Unable to update element for LB bpf map: "+
 			"You can resize it with the flag \"--%s\". "+

@@ -5,11 +5,11 @@ package probes
 
 import (
 	"errors"
+	"syscall"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/features"
-	"golang.org/x/sys/unix"
 
 	"github.com/cilium/cilium/pkg/lock"
 )
@@ -61,7 +61,7 @@ func HaveAttachType(pt ebpf.ProgramType, at ebpf.AttachType) (err error) {
 	// E2BIG occurs when ProgLoadAttr contains non-zero bytes past the end
 	// of the struct known by the running kernel, meaning the kernel is too old
 	// to support the given prog type.
-	if errors.Is(err, unix.EINVAL) || errors.Is(err, unix.E2BIG) {
+	if errors.Is(err, syscall.EINVAL) || errors.Is(err, syscall.E2BIG) {
 		err = ebpf.ErrNotSupported
 	}
 	if err != nil {

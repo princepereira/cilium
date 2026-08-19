@@ -10,9 +10,9 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"syscall"
 
 	flag "github.com/spf13/pflag"
-	"golang.org/x/sys/unix"
 
 	healthDefaults "github.com/cilium/cilium/pkg/health/defaults"
 	"github.com/cilium/cilium/pkg/health/probe/responder"
@@ -29,7 +29,7 @@ func main() {
 	flag.Parse()
 
 	// Shutdown gracefully to halt server and remove pidfile
-	ctx, cancel := signal.NotifyContext(context.Background(), unix.SIGINT, unix.SIGHUP, unix.SIGTERM, unix.SIGQUIT)
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGHUP, syscall.SIGTERM, syscall.SIGQUIT)
 
 	srv := responder.NewServers([]string{""}, listen)
 	defer srv.Shutdown()

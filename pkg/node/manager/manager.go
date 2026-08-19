@@ -21,7 +21,6 @@ import (
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/job"
 	"github.com/cilium/statedb"
-	"github.com/google/renameio/v2"
 	jsoniter "github.com/json-iterator/go"
 	"go4.org/netipx"
 	"golang.org/x/time/rate"
@@ -554,7 +553,7 @@ func (m *manager) checkpoint() error {
 
 	// Write new contents to a temporary file which will be atomically renamed to the
 	// real file at the end of this function to avoid data corruption if we crash.
-	f, err := renameio.TempFile(stateDir, nodesPath)
+	f, err := newNodeCheckpointFile(stateDir, nodesPath)
 	if err != nil {
 		return fmt.Errorf("failed to open temporary file: %w", err)
 	}

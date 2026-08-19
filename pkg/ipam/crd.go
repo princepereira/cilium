@@ -15,9 +15,7 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/vishvananda/netlink"
 	"go4.org/netipx"
-	"golang.org/x/sys/unix"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -424,13 +422,7 @@ func (n *nodeStore) updateLocalNodeResource(node *ciliumv2.CiliumNode) {
 						continue
 					}
 
-					err := netlink.RouteDel(&netlink.Route{
-						Dst:   &net.IPNet{IP: parsedIP, Mask: net.CIDRMask(32, 32)},
-						Table: unix.RT_TABLE_MAIN,
-						Type:  unix.RTN_UNREACHABLE,
-					})
-					if err != nil && !errors.Is(err, unix.ESRCH) {
-						// We ignore ESRCH, as it means the entry was already deleted
+					if err := delUnreachableRoute(parsedIP); err != nil {
 						n.logger.Warn("Unable to delete unreachable route for IP", logfields.IPAddr, ip)
 						continue
 					}

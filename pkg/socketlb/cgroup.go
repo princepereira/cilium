@@ -18,6 +18,8 @@
 // On upgrade, cilium will continue to seamlessly replace old programs with the PROG_ATTACH API,
 // because updating it with a bpf_link could cause connectivity interruptions.
 
+//go:build linux
+
 package socketlb
 
 import (
@@ -27,6 +29,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
@@ -141,7 +144,7 @@ func attachCgroup(logger *slog.Logger, spec *ebpf.Collection, name, cgroupRoot, 
 	// If the kernel supports bpf_link, but an older version of Cilium attached a
 	// cgroup program without flags (old init.sh behaviour), link.AttachRawLink
 	// will return EPERM because bpf_link implicitly uses the multi flag.
-	if !errors.Is(err, unix.EPERM) && !errors.Is(err, link.ErrNotSupported) {
+	if !errors.Is(err, syscall.EPERM) && !errors.Is(err, link.ErrNotSupported) {
 		// Unrecoverable error from AttachRawLink.
 		return fmt.Errorf("attach program %s using bpf_link: %w", name, err)
 	}
@@ -209,12 +212,12 @@ func detachAll(logger *slog.Logger, attach ebpf.AttachType, cgroupRoot string) e
 	})
 	// We know the cgroup root exists, so EINVAL will likely mean querying
 	// the given attach type is not supported.
-	if errors.Is(err, unix.EINVAL) {
+	if errors.Is(err, syscall.EINVAL) {
 		err = fmt.Errorf("%w: %w", err, link.ErrNotSupported)
 	}
 	// Even though the cgroup exists, QueryPrograms will return EBADF
 	// on a cgroupv1.
-	if errors.Is(err, unix.EBADF) {
+	if errors.Is(err, syscall.EBADF) {
 		logger.Debug("The cgroup exists but is a cgroupv1. No detachment necessary")
 		return nil
 	}

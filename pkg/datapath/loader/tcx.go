@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Authors of Cilium
 
+//go:build linux
+
 package loader
 
 import (
@@ -10,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
@@ -141,7 +144,7 @@ func hasCiliumTCXLinks(device netlink.Link, attach ebpf.AttachType) (bool, error
 		Target: int(device.Attrs().Index),
 		Attach: attach,
 	})
-	if errors.Is(err, unix.EINVAL) {
+	if errors.Is(err, syscall.EINVAL) {
 		// Attach type likely not supported, kernel doesn't support tcx.
 		return false, nil
 	}

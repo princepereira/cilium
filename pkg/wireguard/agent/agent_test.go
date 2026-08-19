@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Authors of Cilium
 
+//go:build linux
+
 package agent
 
 import (
@@ -11,6 +13,7 @@ import (
 	"net"
 	"net/netip"
 	"slices"
+	"syscall"
 	"testing"
 
 	"github.com/cilium/hive/hivetest"
@@ -53,7 +56,7 @@ func (f *fakeWgClient) Devices() ([]*wgtypes.Device, error) {
 
 func (f *fakeWgClient) Device(name string) (*wgtypes.Device, error) {
 	if name != types.IfaceName {
-		return nil, unix.ENODEV
+		return nil, syscall.ENODEV
 	}
 
 	return &wgtypes.Device{
@@ -64,7 +67,7 @@ func (f *fakeWgClient) Device(name string) (*wgtypes.Device, error) {
 
 func (f *fakeWgClient) ConfigureDevice(name string, cfg wgtypes.Config) error {
 	if name != types.IfaceName {
-		return unix.ENODEV
+		return syscall.ENODEV
 	}
 
 	if cfg.ReplacePeers {

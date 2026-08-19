@@ -16,7 +16,6 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/statedb"
-	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/cilium/cilium/pkg/datapath/linux/bandwidth/types"
 	"github.com/cilium/cilium/pkg/datapath/linux/config/defines"
@@ -28,13 +27,6 @@ import (
 )
 
 const (
-	// EgressBandwidth is the K8s Pod annotation.
-	EgressBandwidth = "kubernetes.io/egress-bandwidth"
-	// IngressBandwidth is the K8s Pod annotation.
-	IngressBandwidth = "kubernetes.io/ingress-bandwidth"
-	// Priority is the Cilium Pod priority annotation.
-	Priority = "bandwidth.cilium.io/priority"
-
 	// FqDefaultHorizon represents maximum allowed departure
 	// time delta in future. Given applications can set SO_TXTIME
 	// from user space this is a limit to prevent buggy applications
@@ -43,19 +35,6 @@ const (
 	// FqDefaultBuckets is the default 32k (2^15) bucket limit for bwm.
 	// Too low bucket limit can cause scalability issue.
 	FqDefaultBuckets = 15
-
-	// FQ priomap starting from index 0 is 1 2 2 2 1 2 0 0 1 1 1 1 1 1 1 1
-	// Constants below map priority levels to bands high, medium and low.
-	// TODO: These are picked arbitrarily for each QoS class amongst different possible
-	// values. Revisit to see if picking these values would have any unintended side effects.
-	// HACK: Increment prio values by 1 to allow for distinguishing between 0 prio and no prio set.
-
-	// GuaranteedQoSDefaultPriority prio value to classify packets to high prio band
-	GuaranteedQoSDefaultPriority = 6 + 1
-	// BurstableQoSDefaultPriority prio value to classify packets to medium prio band
-	BurstableQoSDefaultPriority = 8 + 1
-	// BestEffortQoSDefaultPriority prio value to classify packets to medium prio band
-	BestEffortQoSDefaultPriority = 5 + 1
 )
 
 // Must be in sync with DIRECTION_* in <bpf/lib/common.h>
@@ -63,17 +42,6 @@ const (
 	DirectionEgress  uint8 = 0
 	DirectionIngress uint8 = 1
 )
-
-type Manager interface {
-	BBREnabled() bool
-	Enabled() bool
-
-	UpdateBandwidthLimit(endpointID uint16, bytesPerSecond uint64, prio uint32)
-	DeleteBandwidthLimit(endpointID uint16)
-
-	UpdateIngressBandwidthLimit(endpointID uint16, bytesPerSecond uint64)
-	DeleteIngressBandwidthLimit(endpointID uint16)
-}
 
 type manager struct {
 	enabled bool
@@ -188,14 +156,6 @@ func (m *manager) DeleteIngressBandwidthLimit(epID uint16) {
 		}
 		txn.Commit()
 	}
-}
-
-func GetBytesPerSec(bandwidth string) (uint64, error) {
-	res, err := resource.ParseQuantity(bandwidth)
-	if err != nil {
-		return 0, err
-	}
-	return uint64(res.Value() / 8), err
 }
 
 // probe checks the various system requirements of the bandwidth manager and disables it if they are

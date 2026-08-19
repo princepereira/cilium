@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Authors of Cilium
 
+//go:build linux
+
 package iptables
 
 import (
@@ -10,6 +12,7 @@ import (
 	"net"
 	"os"
 	"slices"
+	"syscall"
 
 	"github.com/coreos/go-iptables/iptables"
 	"github.com/vishvananda/netlink"
@@ -409,7 +412,7 @@ func deleteLoopbackRoute(ipv4Enabled, ipv6Enabled bool) error {
 		if err := route.Delete(ciliumRoute); err != nil {
 			// Ignore ESRCH (no such process) and ENOENT (no such file or directory) errors,
 			// which indicate the route was already deleted
-			if !errors.Is(err, unix.ESRCH) && !errors.Is(err, unix.ENOENT) {
+			if !errors.Is(err, syscall.ESRCH) && !errors.Is(err, syscall.ENOENT) {
 				return fmt.Errorf("failed to delete route (%+v): %w", ciliumRoute, err)
 			}
 		}
@@ -429,7 +432,7 @@ func deleteInPodMarkRule(ipv4Enabled, ipv6Enabled bool) error {
 			Table:    RouteTableInbound,
 		}
 
-		if err := route.DeleteRule(unix.AF_INET, ipv4Rule); err != nil {
+		if err := route.DeleteRule(syscall.AF_INET, ipv4Rule); err != nil {
 			if !os.IsNotExist(err) {
 				return fmt.Errorf("failed to delete IPv4 netlink rule: %w", err)
 			}
@@ -445,7 +448,7 @@ func deleteInPodMarkRule(ipv4Enabled, ipv6Enabled bool) error {
 			Table:    RouteTableInbound,
 		}
 
-		if err := route.DeleteRule(unix.AF_INET6, ipv6Rule); err != nil {
+		if err := route.DeleteRule(syscall.AF_INET6, ipv6Rule); err != nil {
 			if !os.IsNotExist(err) {
 				return fmt.Errorf("failed to delete IPv6 netlink rule: %w", err)
 			}

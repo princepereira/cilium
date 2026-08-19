@@ -8,11 +8,12 @@ import (
 	"log/slog"
 	"math"
 	"strconv"
+	"syscall"
 	"unsafe"
 
 	ciliumebpf "github.com/cilium/ebpf"
-	"golang.org/x/sys/unix"
 
+	"github.com/cilium/cilium/pkg/bpf/mapflags"
 	"github.com/cilium/cilium/pkg/ebpf"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 )
@@ -46,7 +47,7 @@ func newStatsMap(maxStatsEntries int, log *slog.Logger) (*StatsMap, int) {
 			KeySize:    uint32(unsafe.Sizeof(StatsKey{})),
 			ValueSize:  uint32(unsafe.Sizeof(StatsValue{})),
 			MaxEntries: uint32(maxStatsEntries),
-			Flags:      unix.BPF_F_NO_COMMON_LRU,
+			Flags:      mapflags.BPF_F_NO_COMMON_LRU,
 			Pinning:    ebpf.PinByName,
 		}),
 		log: log,
@@ -131,7 +132,7 @@ func (m *StatsMap) GetStat(epID uint16, k PolicyKey) (packets, bytes uint64) {
 		return packets, bytes
 	}
 
-	if !errors.Is(err, unix.ENOENT) {
+	if !errors.Is(err, syscall.ENOENT) {
 		m.log.Warn("Error getting policy stats",
 			logfields.Error, err,
 			logfields.BPFMapKey, statsKey)
@@ -152,7 +153,7 @@ func (m *StatsMap) ClearStat(epID uint16, k PolicyKey) error {
 
 	err := m.Delete(&statsKey)
 
-	if err == nil || errors.Is(err, unix.ENOENT) {
+	if err == nil || errors.Is(err, syscall.ENOENT) {
 		return nil
 	}
 

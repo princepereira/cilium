@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Authors of Cilium
 
+//go:build linux
+
 package cmd
 
 import (
@@ -42,7 +44,6 @@ working condition after uninstalling the Cilium agent.`,
 var (
 	cleanAll      bool
 	cleanBPF      bool
-	force         bool
 	customCNIConf string
 )
 
@@ -336,13 +337,6 @@ func showWhatWillBeRemoved(cleanups []cleanup) {
 	}
 
 	fmt.Print(warning.String())
-}
-
-func confirmCleanup() bool {
-	fmt.Printf("The command is non-revertible, do you want to continue [y/N]?\n")
-	var res string
-	fmt.Scanln(&res)
-	return res == "y"
 }
 
 func removeCNI() error {

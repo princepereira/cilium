@@ -9,53 +9,26 @@ import (
 	"fmt"
 	"iter"
 	"net"
+	"syscall"
 
+	"github.com/cilium/cilium/pkg/datapath/tables"
+	"github.com/cilium/cilium/pkg/rate"
+	"github.com/cilium/cilium/pkg/time"
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/job"
 	"github.com/cilium/statedb"
 	"github.com/cilium/statedb/reconciler"
 	"github.com/vishvananda/netlink"
-	"golang.org/x/sys/unix"
-
-	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
-	"github.com/cilium/cilium/pkg/datapath/tables"
-	"github.com/cilium/cilium/pkg/rate"
-	"github.com/cilium/cilium/pkg/time"
 )
 
-var _ netlinkFuncs = (*netlink.Handle)(nil)
-
 type netlinkFuncs interface {
-	RouteGetWithOptions(destination net.IP, options *netlink.RouteGetOptions) ([]netlink.Route, error)
+	RouteGetWithOptions(destination net.IP, options *routeGetOptions) ([]netlink.Route, error)
 	NeighSet(neigh *netlink.Neigh) error
 	NeighDel(neigh *netlink.Neigh) error
 }
 
 type netlinkFuncsGetter struct {
 	funcs netlinkFuncs
-}
-
-func newNetlinkFuncsGetter(lifecycle cell.Lifecycle) *netlinkFuncsGetter {
-	n := &netlinkFuncsGetter{}
-
-	lifecycle.Append(
-		cell.Hook{
-			OnStart: func(_ cell.HookContext) error {
-				// Get a netlink handle in the current namespace.
-				// Otherwise we default to the namespace at startup. Which is not what we want
-				// during testing where we might currently be in a sub-namespace.
-				handle, err := safenetlink.NewHandle(nil)
-				if err != nil {
-					return fmt.Errorf("creating netlink handle: %w", err)
-				}
-
-				n.funcs = handle
-				return nil
-			},
-		},
-	)
-
-	return n
 }
 
 func (n *netlinkFuncsGetter) Get() netlinkFuncs {
@@ -100,12 +73,12 @@ func (ops *ops) Update(ctx context.Context, rx statedb.ReadTxn, _ statedb.Revisi
 	neigh := netlink.Neigh{
 		LinkIndex:    neighbor.IfIndex,
 		IP:           neighbor.IP.AsSlice(),
-		Flags:        netlink.NTF_EXT_LEARNED | netlink.NTF_USE,
+		Flags:        ntfExtLearned | ntfUse,
 		HardwareAddr: nil,
 	}
 	if ops.config.ARPPingKernelManaged() == nil {
-		neigh.Flags = netlink.NTF_EXT_LEARNED
-		neigh.FlagsExt = netlink.NTF_EXT_MANAGED
+		neigh.Flags = ntfExtLearned
+		neigh.FlagsExt = ntfExtManaged
 	} else if isNew {
 		// Quirk for older kernels above. We cannot directly create a
 		// dynamic NUD_* with NTF_EXT_LEARNED|NTF_USE without having
@@ -136,13 +109,13 @@ func (ops *ops) Update(ctx context.Context, rx statedb.ReadTxn, _ statedb.Revisi
 		neighInit := netlink.Neigh{
 			LinkIndex:    neighbor.IfIndex,
 			IP:           neighbor.IP.AsSlice(),
-			State:        netlink.NUD_STALE,
-			Flags:        netlink.NTF_EXT_LEARNED,
+			State:        nudStale,
+			Flags:        ntfExtLearned,
 			HardwareAddr: nil,
 		}
 		if err := ops.funcsGetter.Get().NeighSet(&neighInit); err != nil {
 			// EINVAL is expected (see above)
-			if errors.Is(err, unix.EINVAL) {
+			if errors.Is(err, syscall.EINVAL) {
 				return nil
 			}
 
@@ -176,7 +149,7 @@ func (ops *ops) Delete(ctx context.Context, rx statedb.ReadTxn, _ statedb.Revisi
 		HardwareAddr: nil,
 	})
 	if err != nil {
-		if errors.Is(err, unix.ENOENT) {
+		if errors.Is(err, syscall.ENOENT) {
 			// The neighbor entry was already deleted
 			return nil
 		}
@@ -191,7 +164,7 @@ func (ops *ops) Delete(ctx context.Context, rx statedb.ReadTxn, _ statedb.Revisi
 func (ops *ops) Prune(ctx context.Context, rx statedb.ReadTxn, _ iter.Seq2[*DesiredNeighbor, statedb.Revision]) error {
 	var errs error
 	for actualNeighbor := range ops.neighbors.All(rx) {
-		ciliumManaged := actualNeighbor.Flags&netlink.NTF_EXT_LEARNED > 0
+		ciliumManaged := actualNeighbor.Flags&ntfExtLearned > 0
 		if !ciliumManaged {
 			continue
 		}
@@ -214,7 +187,7 @@ func (ops *ops) Prune(ctx context.Context, rx statedb.ReadTxn, _ iter.Seq2[*Desi
 			HardwareAddr: nil,
 		})
 		if err != nil {
-			if errors.Is(err, unix.ENOENT) {
+			if errors.Is(err, syscall.ENOENT) {
 				// The neighbor entry was already deleted
 				continue
 			}
@@ -292,20 +265,20 @@ func newNeighborRefresher(
 
 					if !neighborEvent.Deleted {
 						// Don't look at neighbors that are not owned by Cilium.
-						ciliumOwned := neighbor.Flags&netlink.NTF_EXT_LEARNED > 0
+						ciliumOwned := neighbor.Flags&ntfExtLearned > 0
 						if !ciliumOwned {
 							continue
 						}
 
 						// If the neighbor is managed by the kernel, we don't need to refresh it.
 						// The kernel will handle refreshing it automatically.
-						kernelManaged := neighbor.FlagsExt&netlink.NTF_EXT_MANAGED > 0
+						kernelManaged := neighbor.FlagsExt&ntfExtManaged > 0
 						if kernelManaged {
 							continue
 						}
 
 						// If the neighbor entry got upserted but is not stale, we don't need to refresh it.
-						stale := neighbor.State == netlink.NUD_STALE
+						stale := neighbor.State == nudStale
 						if !stale {
 							continue
 						}

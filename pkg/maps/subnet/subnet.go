@@ -9,9 +9,9 @@ import (
 	"unsafe"
 
 	"github.com/cilium/hive/cell"
-	"golang.org/x/sys/unix"
 
 	"github.com/cilium/cilium/pkg/bpf"
+	"github.com/cilium/cilium/pkg/bpf/mapflags"
 	"github.com/cilium/cilium/pkg/ebpf"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/types"
@@ -119,7 +119,7 @@ func SubnetMap() *bpf.Map {
 		&SubnetMapKey{},
 		&SubnetMapValue{},
 		MaxEntries,
-		unix.BPF_F_NO_PREALLOC|unix.BPF_F_RDONLY_PROG,
+		mapflags.BPF_F_NO_PREALLOC|mapflags.BPF_F_RDONLY_PROG,
 	)
 }
 
