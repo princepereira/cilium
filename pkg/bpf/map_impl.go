@@ -628,6 +628,10 @@ func (m *Map) openOrCreate(pin bool) error {
 		return err
 	}
 
+	// On Windows, reuse the datapath's existing pin when it was created under a
+	// legacy (pre-rename) map name, so both sides share the same object.
+	m.applyLegacyMapAlias()
+
 	m.spec.Flags |= GetMapMemoryFlags(m.spec.Type)
 
 	if m.spec.InnerMap != nil {

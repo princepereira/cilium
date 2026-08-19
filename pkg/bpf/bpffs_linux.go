@@ -47,6 +47,12 @@ func tcPathFromMountInfo(logger *slog.Logger, name string) string {
 	return filepath.Join(mountInfoPrefix, name)
 }
 
+// agentMapPath returns the pin path used by the cilium-agent for a map with the
+// given name: <bpffs>/tc/globals/<name>.
+func agentMapPath(name string) string {
+	return filepath.Join(TCGlobalsPath(), name)
+}
+
 // mountFS mounts the BPFFS filesystem into the desired mapRoot directory.
 func mountFS(logger *slog.Logger, printWarning bool) error {
 	if printWarning {

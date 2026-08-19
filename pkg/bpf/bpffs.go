@@ -72,7 +72,7 @@ func Remove(path string) error {
 func MapPath(logger *slog.Logger, name string) string {
 	if components.IsCiliumAgent() {
 		once.Do(lockDown)
-		return filepath.Join(TCGlobalsPath(), name)
+		return agentMapPath(name)
 	}
 	return tcPathFromMountInfo(logger, name)
 }

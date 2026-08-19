@@ -7,19 +7,32 @@ package bpf
 
 import (
 	"log/slog"
-	"path/filepath"
 	"sync"
-
-	"github.com/cilium/cilium/pkg/defaults"
 )
 
 var mountOnce sync.Once
 
-// tcPathFromMountInfo returns the legacy tc/globals pin path for the given map
-// name. On Windows there is no bpffs mount to inspect, so the path is derived
-// directly from the configured pin root.
+// EbpfGlobalPinPrefix mirrors DEFAULT_MAP_PIN_PATH_PREFIX in eBPF-for-Windows'
+// cilium_maps.h. eBPF-for-Windows pins every Cilium map in the driver-owned
+// "/ebpf/global/" namespace using forward-slash paths, NOT a bpffs mount. The
+// datapath programs and the winebpfmap tooling both pin here, so the agent must
+// use the same prefix for its maps to resolve to the same pinned objects.
+const EbpfGlobalPinPrefix = "/ebpf/global"
+
+// agentMapPath returns the efw pin path for a map name: /ebpf/global/<name>.
+// It deliberately uses forward slashes (path, not filepath): efw pin paths live
+// in a driver-owned namespace and must match the datapath's pins exactly.
+// filepath.Join would emit backslashes on Windows, producing a distinct,
+// unshared pin that the datapath never reads.
+func agentMapPath(name string) string {
+	return EbpfGlobalPinPrefix + "/" + name
+}
+
+// tcPathFromMountInfo returns the efw pin path for the given map name. On
+// Windows there is no bpffs mount to inspect; every pin lives under
+// /ebpf/global/.
 func tcPathFromMountInfo(logger *slog.Logger, name string) string {
-	return filepath.Join(bpffsRoot, defaults.TCGlobalsPath, name)
+	return agentMapPath(name)
 }
 
 // CheckOrMountFS is a no-op on Windows. eBPF-for-Windows has no bpffs mount to
