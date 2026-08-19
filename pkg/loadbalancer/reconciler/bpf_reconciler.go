@@ -1257,7 +1257,10 @@ func (ops *BPFOps) isDatapathCandidate(fe *loadbalancer.Frontend) bool {
 		return true
 	}
 
-	return false
+	// Platform-specific candidates when KPR is off. On Windows there is no
+	// kube-proxy to handle LoadBalancer VIPs, so the eBPF-for-Windows datapath
+	// must program them itself; on Linux this is a no-op.
+	return platformDatapathCandidate(fe)
 }
 
 func (ops *BPFOps) upsertService(svcKey maps.ServiceKey, svcVal maps.ServiceValue) error {
