@@ -6,18 +6,17 @@ package registry
 import (
 	"testing"
 
-	"golang.org/x/sys/unix"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/cilium/cilium/pkg/bpf/mapflags"
 	"github.com/cilium/ebpf"
 )
 
 func TestMapSpecPatch(t *testing.T) {
 	spec := &ebpf.MapSpec{
 		MaxEntries: 1024,
-		Flags:      unix.BPF_F_NO_PREALLOC,
+		Flags:      mapflags.BPF_F_NO_PREALLOC,
 		InnerMap: &ebpf.MapSpec{
 			MaxEntries: 256,
 			Flags:      0,
@@ -36,7 +35,7 @@ func TestMapSpecPatch(t *testing.T) {
 	mod.MaxEntries = 2048
 	mod.Flags = 0
 	mod.InnerMap.MaxEntries = 512
-	mod.InnerMap.Flags = unix.BPF_F_NO_PREALLOC
+	mod.InnerMap.Flags = mapflags.BPF_F_NO_PREALLOC
 
 	diff := patch.diff(mod)
 	assert.Contains(t, diff, "MaxEntries: 1024 -> 2048")
@@ -48,5 +47,5 @@ func TestMapSpecPatch(t *testing.T) {
 	assert.Equal(t, uint32(0), spec.Flags)
 	require.NotNil(t, spec.InnerMap)
 	assert.Equal(t, uint32(512), spec.InnerMap.MaxEntries)
-	assert.Equal(t, uint32(unix.BPF_F_NO_PREALLOC), spec.InnerMap.Flags)
+	assert.Equal(t, uint32(mapflags.BPF_F_NO_PREALLOC), spec.InnerMap.Flags)
 }

@@ -7,9 +7,9 @@ import (
 	"fmt"
 
 	"github.com/cilium/hive/cell"
-	"golang.org/x/sys/unix"
 
 	"github.com/cilium/cilium/pkg/bpf"
+	"github.com/cilium/cilium/pkg/bpf/mapflags"
 	ipsec "github.com/cilium/cilium/pkg/datapath/linux/ipsec/types"
 	"github.com/cilium/cilium/pkg/ebpf"
 	"github.com/cilium/cilium/pkg/option"
@@ -63,7 +63,7 @@ func newMap(lc cell.Lifecycle, ipsecCfg ipsec.Config, dc *option.DaemonConfig) *
 		&EncryptKey{},
 		&EncryptValue{},
 		MaxEntries,
-		unix.BPF_F_RDONLY_PROG,
+		mapflags.BPF_F_RDONLY_PROG,
 	).WithCache().WithEvents(dc.GetEventBufferConfig(MapName))
 
 	lc.Append(cell.Hook{

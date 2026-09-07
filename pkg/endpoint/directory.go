@@ -8,8 +8,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"golang.org/x/sys/unix"
-
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/option"
 )
@@ -116,7 +114,7 @@ func (e *Endpoint) synchronizeDirectories(origDir string) error {
 		}
 
 		// Atomically exchange the two directories.
-		if err := unix.Renameat2(unix.AT_FDCWD, tmpDir, unix.AT_FDCWD, origDir, unix.RENAME_EXCHANGE); err != nil {
+		if err := exchangeDirectories(tmpDir, origDir); err != nil {
 			return fmt.Errorf("unable to exchange %s with %s: %w", origDir, tmpDir, err)
 		}
 

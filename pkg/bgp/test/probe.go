@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Authors of Cilium
 
+//go:build linux
+
 package test
 
 import (
@@ -34,7 +36,7 @@ func TCPMD5SigAvailable() (bool, error) {
 	}
 	defer fd.Close()
 
-	err = unix.SetsockoptTCPMD5Sig(int(fd.Fd()), unix.IPPROTO_TCP, unix.TCP_MD5SIG, newTcpMD5Sig("1.2.3.4", "key"))
+	err = unix.SetsockoptTCPMD5Sig(int(fd.Fd()), syscall.IPPROTO_TCP, unix.TCP_MD5SIG, newTcpMD5Sig("1.2.3.4", "key"))
 	if err != nil {
 		if errors.Is(err, syscall.ENOPROTOOPT) {
 			return false, nil // "protocol not available"
@@ -48,10 +50,10 @@ func newTcpMD5Sig(address, key string) *unix.TCPMD5Sig {
 	sig := &unix.TCPMD5Sig{}
 	addr := net.ParseIP(address)
 	if addr.To4() != nil {
-		sig.Addr.Family = unix.AF_INET
+		sig.Addr.Family = syscall.AF_INET
 		copy(sig.Addr.Data[2:], addr.To4())
 	} else {
-		sig.Addr.Family = unix.AF_INET6
+		sig.Addr.Family = syscall.AF_INET6
 		copy(sig.Addr.Data[6:], addr.To16())
 	}
 	sig.Keylen = uint16(len(key))

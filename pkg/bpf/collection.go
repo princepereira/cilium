@@ -18,10 +18,10 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/btf"
-	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/cilium/cilium/pkg/bpf/analyze"
+	"github.com/cilium/cilium/pkg/bpf/mapflags"
 	"github.com/cilium/cilium/pkg/container/set"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/maps/registry"
@@ -223,7 +223,7 @@ func LoadCollection(logger *slog.Logger, spec *ebpf.CollectionSpec, opts *Collec
 		return nil, nil, fmt.Errorf("replacing maps from registry: %w", err)
 	}
 
-	// Handle BPF_F_RDONLY_PROG flag compatibility for pinned maps before loading.
+	// Handle mapflags.BPF_F_RDONLY_PROG flag compatibility for pinned maps before loading.
 	// This ensures BPF programs can reuse existing pinned maps during upgrades
 	// where the flag state differs between old and new versions.
 	if err := adjustMapFlagsForUpgrade(logger, spec, &opts.CollectionOptions); err != nil {
@@ -338,9 +338,9 @@ func patchMaps(coll *ebpf.CollectionSpec, reg *registry.MapRegistry) error {
 }
 
 // adjustMapFlagsForUpgrade modifies map specs in the CollectionSpec to handle
-// BPF_F_RDONLY_PROG flag mismatches between spec and pinned maps.
+// mapflags.BPF_F_RDONLY_PROG flag mismatches between spec and pinned maps.
 //
-// On upgrade (no flag -> flag): remove BPF_F_RDONLY_PROG from spec to reuse the
+// On upgrade (no flag -> flag): remove mapflags.BPF_F_RDONLY_PROG from spec to reuse the
 // existing map, since the datapath functions correctly with a more privileged
 // (read-write) map.
 //
@@ -351,7 +351,7 @@ func adjustMapFlagsForUpgrade(logger *slog.Logger, spec *ebpf.CollectionSpec, op
 		return nil
 	}
 
-	const bpfFRdonlyProg = unix.BPF_F_RDONLY_PROG
+	const bpfFRdonlyProg = mapflags.BPF_F_RDONLY_PROG
 
 	for name, mapSpec := range spec.Maps {
 		if mapSpec.Pinning == 0 {
@@ -374,14 +374,14 @@ func adjustMapFlagsForUpgrade(logger *slog.Logger, spec *ebpf.CollectionSpec, op
 		switch {
 		case mapSpec.Flags&bpfFRdonlyProg != 0 && info.Flags&bpfFRdonlyProg == 0:
 			// Upgrade: strip flag from spec to reuse existing map.
-			logger.Debug("Removing BPF_F_RDONLY_PROG flag for upgrade compatibility",
+			logger.Debug("Removing mapflags.BPF_F_RDONLY_PROG flag for upgrade compatibility",
 				logfields.BPFMapName, name,
 				logfields.Path, pinPath,
 			)
 			mapSpec.Flags &^= bpfFRdonlyProg
 		case mapSpec.Flags&bpfFRdonlyProg == 0 && info.Flags&bpfFRdonlyProg != 0:
 			// Downgrade: unpin to force recreation without the flag.
-			logger.Debug("Unpinning map with BPF_F_RDONLY_PROG for downgrade compatibility",
+			logger.Debug("Unpinning map with mapflags.BPF_F_RDONLY_PROG for downgrade compatibility",
 				logfields.BPFMapName, name,
 				logfields.Path, pinPath,
 			)

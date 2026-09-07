@@ -6,9 +6,9 @@ package reflectors
 import (
 	"errors"
 	"sync"
+	"syscall"
 
 	"github.com/cilium/hive/cell"
-	"golang.org/x/sys/unix"
 
 	"github.com/cilium/cilium/pkg/netns"
 )
@@ -36,6 +36,6 @@ type HaveNetNSCookieSupport func() bool
 func NetnsCookieSupportFunc() HaveNetNSCookieSupport {
 	return sync.OnceValue(func() bool {
 		_, err := netns.GetNetNSCookie()
-		return !errors.Is(err, unix.ENOPROTOOPT)
+		return !errors.Is(err, syscall.ENOPROTOOPT)
 	})
 }

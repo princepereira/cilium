@@ -10,7 +10,6 @@ import (
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/statedb"
 	"go4.org/netipx"
-	"golang.org/x/sys/unix"
 
 	"github.com/cilium/cilium/pkg/datapath/connector"
 	fakeconnector "github.com/cilium/cilium/pkg/datapath/connector/fake"
@@ -122,8 +121,8 @@ func fakeDevices(db *statedb.DB, devices statedb.RWTable[*tables.Device]) stated
 		HardwareAddr: []byte{1, 2, 3, 4, 5, 6},
 		Flags:        net.FlagUp,
 		Addrs: []tables.DeviceAddress{
-			{Addr: netipx.MustFromStdIP(fakenode.IPv4NodePortAddress), Scope: unix.RT_SCOPE_UNIVERSE},
-			{Addr: netipx.MustFromStdIP(fakenode.IPv6NodePortAddress), Scope: unix.RT_SCOPE_UNIVERSE},
+			{Addr: netipx.MustFromStdIP(fakenode.IPv4NodePortAddress), Scope: rtScopeUniverse},
+			{Addr: netipx.MustFromStdIP(fakenode.IPv6NodePortAddress), Scope: rtScopeUniverse},
 		},
 		Type:     "test",
 		Selected: true,
@@ -136,11 +135,11 @@ func fakeDevices(db *statedb.DB, devices statedb.RWTable[*tables.Device]) stated
 		HardwareAddr: []byte{2, 3, 4, 5, 6, 7},
 		Flags:        net.FlagUp,
 		Addrs: []tables.DeviceAddress{
-			{Addr: netipx.MustFromStdIP(fakenode.IPv4InternalAddress), Scope: unix.RT_SCOPE_UNIVERSE},
-			{Addr: netipx.MustFromStdIP(fakenode.IPv6InternalAddress), Scope: unix.RT_SCOPE_UNIVERSE},
+			{Addr: netipx.MustFromStdIP(fakenode.IPv4InternalAddress), Scope: rtScopeUniverse},
+			{Addr: netipx.MustFromStdIP(fakenode.IPv6InternalAddress), Scope: rtScopeUniverse},
 
-			{Addr: netip.MustParseAddr("10.0.0.4"), Scope: unix.RT_SCOPE_UNIVERSE, Secondary: true},
-			{Addr: netip.MustParseAddr("f00d::3"), Scope: unix.RT_SCOPE_UNIVERSE, Secondary: true},
+			{Addr: netip.MustParseAddr("10.0.0.4"), Scope: rtScopeUniverse, Secondary: true},
+			{Addr: netip.MustParseAddr("f00d::3"), Scope: rtScopeUniverse, Secondary: true},
 		},
 		Type:     "test",
 		Selected: true,

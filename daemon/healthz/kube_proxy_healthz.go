@@ -10,11 +10,11 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"syscall"
 
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/job"
 	"github.com/spf13/pflag"
-	"golang.org/x/sys/unix"
 
 	"github.com/cilium/cilium/api/v1/models"
 	"github.com/cilium/cilium/pkg/kpr"
@@ -85,7 +85,7 @@ func registerKubeProxyHealthzHTTPService(params kubeProxyHealthParams) error {
 		addr := params.Config.KubeProxyReplacementHealthzBindAddress
 		lc := net.ListenConfig{Control: setsockoptReuseAddrAndPort}
 		ln, err := lc.Listen(ctx, "tcp", addr)
-		if errors.Is(err, unix.EADDRNOTAVAIL) {
+		if errors.Is(err, syscall.EADDRNOTAVAIL) {
 			params.Logger.Info("KubeProxy healthz server not available", logfields.Address, addr)
 		} else if err != nil {
 			params.Logger.Error("hint: kube-proxy should not be running nor listening on the same healthz-bind-address.",

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Authors of Cilium
 
+//go:build linux
+
 package stats
 
 import (
@@ -19,13 +21,6 @@ import (
 
 	statstypes "github.com/cilium/cilium/pkg/bpf/stats/types"
 	"github.com/cilium/cilium/pkg/time"
-)
-
-const (
-	SortFlagName   = "sort"
-	PodFlagName    = "pod"
-	DeviceFlagName = "device"
-	JSONFlag       = "json"
 )
 
 type bpfProgramStats struct {

@@ -50,3 +50,4 @@ func (e *eventsMap) init(maxEntries int) error {
 		WithEvents(option.Config.GetEventBufferConfig(MapName))
 	return e.m.Create()
 }
+

@@ -10,8 +10,8 @@ import (
 	"unsafe"
 
 	"github.com/cilium/hive/cell"
-	"golang.org/x/sys/unix"
 
+	"github.com/cilium/cilium/pkg/bpf/mapflags"
 	"github.com/cilium/cilium/pkg/ebpf"
 	"github.com/cilium/cilium/pkg/maps/l2respondermap"
 	"github.com/cilium/cilium/pkg/types"
@@ -56,7 +56,7 @@ func newMap(lifecycle cell.Lifecycle, maxEntries int, logger *slog.Logger) *l2V6
 					KeySize:    uint32(unsafe.Sizeof(L2V6ResponderKey{})),
 					ValueSize:  uint32(unsafe.Sizeof(l2respondermap.L2ResponderStats{})),
 					MaxEntries: uint32(maxEntries),
-					Flags:      unix.BPF_F_NO_PREALLOC,
+					Flags:      mapflags.BPF_F_NO_PREALLOC,
 					Pinning:    ebpf.PinByName,
 				})
 				if err := m.OpenOrCreate(); err != nil {

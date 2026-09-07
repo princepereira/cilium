@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Authors of Cilium
 
+//go:build linux
+
 package sockets
 
 import (
@@ -104,7 +106,7 @@ func DestroySocket(logger *slog.Logger, sock netlink.Socket, proto netlink.Proto
 
 func iterate(proto uint8, family uint8, stateFilter uint32, fn func(*Socket, error) error) error {
 	switch proto {
-	case unix.IPPROTO_UDP, unix.IPPROTO_TCP:
+	case syscall.IPPROTO_UDP, syscall.IPPROTO_TCP:
 	default:
 		return fmt.Errorf("unsupported protocol for iterating sockets: %d", proto)
 	}
@@ -134,7 +136,7 @@ type netlinkSocketDestroyer struct {
 // sock_diag netlink framework.
 //
 // Supported families in the filter: syscall.AF_INET, syscall.AF_INET6
-// Supported protocols in the filter: unix.IPPROTO_UDP, unix.IPPROTO_TCP
+// Supported protocols in the filter: syscall.IPPROTO_UDP, syscall.IPPROTO_TCP
 func (d *netlinkSocketDestroyer) Destroy(logger *slog.Logger, filter SocketFilter) error {
 	family := filter.Family
 	if family != syscall.AF_INET && family != syscall.AF_INET6 {
@@ -146,7 +148,7 @@ func (d *netlinkSocketDestroyer) Destroy(logger *slog.Logger, filter SocketFilte
 	// Query sockets matching the passed filter, and then destroy the filtered
 	// sockets.
 	switch filter.Protocol {
-	case unix.IPPROTO_UDP, unix.IPPROTO_TCP:
+	case syscall.IPPROTO_UDP, syscall.IPPROTO_TCP:
 	redo:
 		err := filterAndDestroySockets(family, filter.Protocol, filter.States, func(sock netlink.SocketID, err error) {
 			if err != nil {
@@ -246,12 +248,12 @@ func newBPFSocketDestroyer(logger *slog.Logger, sockRevNat4, sockRevNat6 *bpf.Ma
 // socket iterator and the cil_sock_udp_destroy program.
 //
 // Supported families in the filter: syscall.AF_INET, syscall.AF_INET6
-// Supported protocols in the filter: unix.IPPROTO_UDP, unix.IPPROTO_TCP
+// Supported protocols in the filter: syscall.IPPROTO_UDP, syscall.IPPROTO_TCP
 func (sd *bpfSocketDestroyer) Destroy(logger *slog.Logger, f SocketFilter) error {
 	if f.Family != syscall.AF_INET && f.Family != syscall.AF_INET6 {
 		return fmt.Errorf("unsupported family for socket destroy: %d", f.Family)
 	}
-	if f.Protocol != unix.IPPROTO_UDP && f.Protocol != unix.IPPROTO_TCP {
+	if f.Protocol != syscall.IPPROTO_UDP && f.Protocol != syscall.IPPROTO_TCP {
 		return fmt.Errorf("unsupported protocol for socket destroy: %d", f.Protocol)
 	}
 
@@ -264,13 +266,13 @@ func (sd *bpfSocketDestroyer) Destroy(logger *slog.Logger, f SocketFilter) error
 
 	var prog *ebpf.Program
 	if f.Family == syscall.AF_INET {
-		if f.Protocol == unix.IPPROTO_UDP {
+		if f.Protocol == syscall.IPPROTO_UDP {
 			prog = sd.progs.CilSockUdpDestroyV4
 		} else {
 			prog = sd.progs.CilSockTcpDestroyV4
 		}
 	} else {
-		if f.Protocol == unix.IPPROTO_UDP {
+		if f.Protocol == syscall.IPPROTO_UDP {
 			prog = sd.progs.CilSockUdpDestroyV6
 		} else {
 			prog = sd.progs.CilSockTcpDestroyV6
@@ -401,7 +403,7 @@ func serializeAddr(bb *bytes.Buffer, family uint8, addr net.IP) {
 		}
 		return
 	}
-	if family == unix.AF_INET6 {
+	if family == syscall.AF_INET6 {
 		bb.Write(addr)
 	} else {
 		bb.Write(addr.To4())
@@ -430,7 +432,7 @@ func (s *Socket) Deserialize(b []byte) error {
 	s.Retrans, _ = bb.ReadByte()
 	s.ID.SourcePort = networkOrder.Uint16(bb.Next(2))
 	s.ID.DestinationPort = networkOrder.Uint16(bb.Next(2))
-	if s.Family == unix.AF_INET6 {
+	if s.Family == syscall.AF_INET6 {
 		s.ID.Source = net.IP(bb.Next(net.IPv6len))
 		s.ID.Destination = net.IP(bb.Next(net.IPv6len))
 	} else {

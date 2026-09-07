@@ -12,9 +12,9 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/cilium/hive/cell"
 	"github.com/spf13/pflag"
-	"golang.org/x/sys/unix"
 
 	"github.com/cilium/cilium/pkg/bpf"
+	"github.com/cilium/cilium/pkg/bpf/mapflags"
 	"github.com/cilium/cilium/pkg/datapath/linux/config/defines"
 	"github.com/cilium/cilium/pkg/metrics"
 	"github.com/cilium/cilium/pkg/option"
@@ -158,7 +158,7 @@ func createPolicyMap4V2(lc cell.Lifecycle, registry *metrics.Registry, cfg Polic
 		&EgressPolicyKey4{},
 		&EgressPolicyVal4V2{},
 		cfg.EgressGatewayPolicyMapMax,
-		unix.BPF_F_RDONLY_PROG,
+		mapflags.BPF_F_RDONLY_PROG,
 	).WithPressureMetric(registry)
 
 	lc.Append(cell.Hook{
@@ -186,7 +186,7 @@ func createPolicyMap6(lc cell.Lifecycle, registry *metrics.Registry, cfg PolicyC
 		&EgressPolicyKey6{},
 		&EgressPolicyVal6{},
 		cfg.EgressGatewayPolicyMapMax,
-		unix.BPF_F_RDONLY_PROG,
+		mapflags.BPF_F_RDONLY_PROG,
 	).WithPressureMetric(registry)
 
 	lc.Append(cell.Hook{

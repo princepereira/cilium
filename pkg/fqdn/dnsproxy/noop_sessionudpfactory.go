@@ -15,10 +15,6 @@ var _ dns.SessionUDPFactory = &noopSessionUDPFactory{}
 
 func (*noopSessionUDPFactory) InitPool(msgSize int) {}
 
-func (*noopSessionUDPFactory) ReadRequest(conn *net.UDPConn) ([]byte, dns.SessionUDP, error) {
-	return nil, nil, nil
-}
-
 func (*noopSessionUDPFactory) ReadRequestConn(conn net.PacketConn) ([]byte, net.Addr, error) {
 	return nil, nil, nil
 }

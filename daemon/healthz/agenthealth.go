@@ -11,11 +11,11 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"syscall"
 
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/job"
 	"github.com/spf13/pflag"
-	"golang.org/x/sys/unix"
 
 	"github.com/cilium/cilium/api/v1/models"
 	"github.com/cilium/cilium/pkg/logging/logfields"
@@ -82,7 +82,7 @@ func registerAgentHealthHTTPService(params agentHealthParams) error {
 			lc := net.ListenConfig{Control: setsockoptReuseAddrAndPort}
 			addr := net.JoinHostPort(host, fmt.Sprintf("%d", params.Config.AgentHealthPort))
 			ln, err := lc.Listen(context.Background(), "tcp", addr)
-			if errors.Is(err, unix.EADDRNOTAVAIL) {
+			if errors.Is(err, syscall.EADDRNOTAVAIL) {
 				params.Logger.Info("healthz status API server not available", logfields.Address, addr)
 				return fmt.Errorf("healthz status API server not available: %w", err)
 			} else if err != nil {

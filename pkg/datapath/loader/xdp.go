@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Authors of Cilium
 
+//go:build linux
+
 package loader
 
 import (
@@ -12,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
@@ -19,6 +22,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/cilium/cilium/pkg/bpf"
+	"github.com/cilium/cilium/pkg/bpf/mapflags"
 	"github.com/cilium/cilium/pkg/datapath/config"
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
 	"github.com/cilium/cilium/pkg/datapath/xdp"
@@ -217,7 +221,7 @@ func xdpPermutations(spec *ebpf.CollectionSpec) iter.Seq2[int, *ebpf.CollectionS
 				}
 
 				if p.flipFrags {
-					prog.Flags ^= unix.BPF_F_XDP_HAS_FRAGS
+					prog.Flags ^= mapflags.BPF_F_XDP_HAS_FRAGS
 				}
 			}
 
@@ -255,7 +259,7 @@ func loadAssignAttach(ctx context.Context, logger *slog.Logger, reg *registry.Ma
 
 		err = attachXDPProgram(logger, iface, obj.Entrypoint, symbolFromHostNetdevXDP,
 			bpffsDeviceLinksDir(bpf.CiliumPath(), iface), xdpConfigModeToFlag(xdpMode))
-		if errors.Is(err, unix.EINVAL) {
+		if errors.Is(err, syscall.EINVAL) {
 			// EINVAL during attachment can have multiple causes. There are two common
 			// cases we can handle:
 			//
@@ -273,7 +277,7 @@ func loadAssignAttach(ctx context.Context, logger *slog.Logger, reg *registry.Ma
 				logfields.Error, err,
 				logfields.Attempt, i,
 				logfields.AttachType, prog.AttachType,
-				logfields.WithFrags, prog.Flags&unix.BPF_F_XDP_HAS_FRAGS != 0,
+				logfields.WithFrags, prog.Flags&mapflags.BPF_F_XDP_HAS_FRAGS != 0,
 			)
 			continue
 		}
@@ -377,7 +381,7 @@ func attachXDPProgram(logger *slog.Logger, iface netlink.Link, prog *ebpf.Progra
 	//
 	// If the kernel supports bpf_link, but an older version of Cilium attached a
 	// XDP program, link.AttachXDP will return EBUSY.
-	if !errors.Is(err, unix.EBUSY) && !errors.Is(err, link.ErrNotSupported) {
+	if !errors.Is(err, syscall.EBUSY) && !errors.Is(err, link.ErrNotSupported) {
 		// Unrecoverable error from AttachRawLink.
 		return fmt.Errorf("attaching program %s using bpf_link: %w", progName, err)
 	}

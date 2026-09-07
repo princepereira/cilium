@@ -10,6 +10,7 @@ import (
 	"maps"
 	"net"
 	"net/netip"
+	"syscall"
 	"testing"
 
 	"github.com/cilium/hive/cell"
@@ -18,7 +19,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netlink"
-	"golang.org/x/sys/unix"
 
 	cmtypes "github.com/cilium/cilium/pkg/clustermesh/types"
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
@@ -201,7 +201,7 @@ func initializeNetns(t *testing.T, ns *netns.NetNS, addr string) net.Conn {
 					},
 				})
 			}
-			_, err := safenetlink.AddrList(l, unix.AF_INET)
+			_, err := safenetlink.AddrList(l, syscall.AF_INET)
 			assert.NoError(t, err)
 		}
 		conn, err = net.Dial("udp", addr)
@@ -246,7 +246,7 @@ func TestPrivilegedSocketTermination_Datapath(t *testing.T) {
 		}
 		out := uint32(0)
 		ns.Do(func() error {
-			sock, err := safenetlink.SocketDiagUDP(unix.AF_INET)
+			sock, err := safenetlink.SocketDiagUDP(syscall.AF_INET)
 			assert.NoError(t, err)
 			for _, s := range sock {
 				if s.ID.DestinationPort == port {
@@ -344,7 +344,7 @@ func TestPrivilegedSocketTermination_Datapath(t *testing.T) {
 		if closed {
 			c.SetDeadline(time.Now().Add(time.Millisecond * 250))
 			_, err = c.Read([]byte{0})
-			assert.ErrorIs(t, err, unix.ECONNABORTED, "first sock connection should have been aborted")
+			assert.ErrorIs(t, err, syscall.ECONNABORTED, "first sock connection should have been aborted")
 		} else {
 			c.SetDeadline(time.Now().Add(time.Millisecond * 250))
 			_, err = c.Read([]byte{0})
