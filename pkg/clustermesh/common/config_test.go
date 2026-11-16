@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/cilium/hive/hivetest"
-	"github.com/google/renameio/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -34,7 +33,7 @@ var (
 func writeFile(t *testing.T, name, content string) {
 	t.Helper()
 
-	err := renameio.WriteFile(name, []byte(content), 0644, renameio.WithTempDir(os.TempDir()))
+	err := os.WriteFile(name, []byte(content), 0644)
 	require.NoError(t, err)
 }
 

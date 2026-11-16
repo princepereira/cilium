@@ -12,9 +12,9 @@ import (
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/hive/cell"
-	"golang.org/x/sys/unix"
 
 	"github.com/cilium/cilium/pkg/bpf"
+	"github.com/cilium/cilium/pkg/bpf/mapflags"
 	"github.com/cilium/cilium/pkg/datapath/linux/config/defines"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/types"
@@ -158,7 +158,7 @@ func newVRFMaps(dc *option.DaemonConfig, lc cell.Lifecycle) (bpf.MapOut[*VRFMap4
 		&VRFKey4{},
 		&VRFValue{},
 		maxVRFEntries,
-		unix.BPF_F_NO_PREALLOC|unix.BPF_F_RDONLY_PROG,
+		mapflags.BPF_F_NO_PREALLOC|mapflags.BPF_F_RDONLY_PROG,
 	)
 
 	m6 := bpf.NewMap(
@@ -167,7 +167,7 @@ func newVRFMaps(dc *option.DaemonConfig, lc cell.Lifecycle) (bpf.MapOut[*VRFMap4
 		&VRFKey6{},
 		&VRFValue{},
 		maxVRFEntries,
-		unix.BPF_F_NO_PREALLOC|unix.BPF_F_RDONLY_PROG,
+		mapflags.BPF_F_NO_PREALLOC|mapflags.BPF_F_RDONLY_PROG,
 	)
 
 	lc.Append(cell.Hook{

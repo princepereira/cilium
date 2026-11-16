@@ -13,7 +13,7 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/btf"
 
-	"golang.org/x/sys/unix"
+	"github.com/cilium/cilium/pkg/bpf/mapflags"
 )
 
 // LoadMapSpecs returns the MapSpecs of all pinned BPF maps in the datapath.

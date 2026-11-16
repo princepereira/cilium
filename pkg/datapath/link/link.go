@@ -49,15 +49,10 @@ func Rename(curName, newName string) error {
 	return netlink.LinkSetName(link, newName)
 }
 
-// SetAltNames sets the altnames for a link
-func AddAltName(linkName, altName string) error {
-	link, err := safenetlink.LinkByName(linkName)
-	if err != nil {
-		return err
-	}
-
-	return netlink.LinkAddAltName(link, altName)
-}
+// SetAltNames sets the altnames for a link.
+//
+// AddAltName is defined per-platform (see link_linux.go / link_other.go)
+// because netlink.LinkAddAltName has no non-Linux stub in the netlink library.
 
 func GetHardwareAddr(ifName string) (mac.MAC, error) {
 	iface, err := safenetlink.LinkByName(ifName)

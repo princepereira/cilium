@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Authors of Cilium
 
-//go:build !linux
+//go:build !linux && !windows
 
 // This file duplicates the stubs that exist in vishvananda/netlink outside the linux build. Not all
 // functions defined in found in netlink_linux.go are present here, because not all have a stub in
 // vishvananda/netlink, and thus some of the necessary function signature types are missing outside
 // the linux build.
+//
+// Windows has its own implementation in netlink_windows.go, which provides real
+// interface/address enumeration backed by the Go standard library net package
+// (which maps to the GetAdaptersAddresses / GetIfTable2 Windows APIs internally).
 
 package safenetlink
 

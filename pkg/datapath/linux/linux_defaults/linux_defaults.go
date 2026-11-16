@@ -3,10 +3,6 @@
 
 package linux_defaults
 
-import (
-	"golang.org/x/sys/unix"
-)
-
 // Linux specific constants used in Linux datapath
 const (
 	// RouteTableIPSec is the default table ID to use for IPSec routing rules
@@ -69,7 +65,8 @@ const (
 	// kernel proto to make sure systemd-networkd doesn't interfere with these
 	// rules (see networkd config directive ManageForeignRoutingPolicyRules, set
 	// to 'yes' by default).
-	RTProto = unix.RTPROT_KERNEL
+	//
+	// RTProto is defined per-platform (see rtproto_linux.go / rtproto_other.go).
 
 	// RulePriorityToProxyIngress is the priority of the routing rule installed by
 	// the proxy package for redirecting inbound packets to the proxy.

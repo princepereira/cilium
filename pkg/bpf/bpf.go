@@ -6,12 +6,12 @@ package bpf
 import (
 	"sync/atomic"
 
+	"github.com/cilium/cilium/pkg/bpf/mapflags"
 	"github.com/cilium/ebpf"
-	"golang.org/x/sys/unix"
 )
 
 var (
-	preAllocateMapSetting uint32 = unix.BPF_F_NO_PREALLOC
+	preAllocateMapSetting uint32 = mapflags.BPF_F_NO_PREALLOC
 	noCommonLRUMapSetting uint32 = 0
 )
 
@@ -27,14 +27,14 @@ func EnableMapPreAllocation() {
 // take effect in that case. Also note that this does not take effect on
 // existing map although could be recreated later when objCheck() runs.
 func DisableMapPreAllocation() {
-	atomic.StoreUint32(&preAllocateMapSetting, unix.BPF_F_NO_PREALLOC)
+	atomic.StoreUint32(&preAllocateMapSetting, mapflags.BPF_F_NO_PREALLOC)
 }
 
 // EnableMapDistributedLRU enables the LRU map no-common-LRU feature which
 // splits backend memory pools among CPUs to avoid sharing a common backend
 // pool where frequent allocation/frees might content on internal spinlocks.
 func EnableMapDistributedLRU() {
-	atomic.StoreUint32(&noCommonLRUMapSetting, unix.BPF_F_NO_COMMON_LRU)
+	atomic.StoreUint32(&noCommonLRUMapSetting, mapflags.BPF_F_NO_COMMON_LRU)
 }
 
 // DisableMapDistributedLRU disables the LRU map no-common-LRU feature which
@@ -49,7 +49,7 @@ func GetMapMemoryFlags(t ebpf.MapType) uint32 {
 	switch t {
 	// LPM Tries don't support preallocation.
 	case ebpf.LPMTrie:
-		return unix.BPF_F_NO_PREALLOC
+		return mapflags.BPF_F_NO_PREALLOC
 	// Support disabling preallocation for these map types.
 	case ebpf.Hash, ebpf.PerCPUHash, ebpf.HashOfMaps:
 		return atomic.LoadUint32(&preAllocateMapSetting)

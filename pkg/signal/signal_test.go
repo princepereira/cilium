@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cilium/ebpf/perf"
 	"github.com/cilium/hive/hivetest"
 	"github.com/stretchr/testify/require"
 
 	"github.com/cilium/cilium/pkg/logging"
+	"github.com/cilium/cilium/pkg/maps/signalmap"
 	fakesignalmap "github.com/cilium/cilium/pkg/maps/signalmap/fake"
 )
 
@@ -27,11 +27,11 @@ type testReader struct {
 	lost   uint64
 }
 
-func (r *testReader) Read() (perf.Record, error) {
+func (r *testReader) Read() (signalmap.Record, error) {
 	if r.closed {
-		return perf.Record{}, io.EOF
+		return signalmap.Record{}, io.EOF
 	}
-	return perf.Record{CPU: r.cpu, RawSample: r.data, LostSamples: r.lost}, nil
+	return signalmap.Record{CPU: r.cpu, RawSample: r.data, LostSamples: r.lost}, nil
 }
 
 func (r *testReader) Pause() error {

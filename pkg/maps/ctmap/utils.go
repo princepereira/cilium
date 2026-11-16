@@ -5,8 +5,7 @@ package ctmap
 
 import (
 	"errors"
-
-	"golang.org/x/sys/unix"
+	"syscall"
 
 	"github.com/cilium/cilium/pkg/bpf"
 	"github.com/cilium/cilium/pkg/maps/nat"
@@ -137,7 +136,7 @@ func ctEntryExist(ctMap *Map, ctKey bpf.MapKey, f func(*CtEntry) bool) bool {
 	v, err := ctMap.Lookup(ctKey)
 
 	if err != nil {
-		return !errors.Is(err, unix.ENOENT)
+		return !errors.Is(err, syscall.ENOENT)
 	}
 
 	if f == nil {

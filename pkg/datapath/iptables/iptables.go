@@ -170,6 +170,13 @@ func (ipt *ipt) getIPtablesMode(ctx context.Context) (string, error) {
 }
 
 func (ipt *ipt) runProgOutput(args []string) (string, error) {
+	// On platforms without iptables/netfilter (e.g. Windows) there is nothing
+	// to program; treat every invocation as a successful no-op so the iptables
+	// datapath degrades cleanly instead of spamming "executable not found".
+	if !iptablesSupported {
+		return "", nil
+	}
+
 	fullCommand := fmt.Sprintf("%s %s", ipt.getProg(), strings.Join(args, " "))
 
 	ipt.logger.Debug("Running command", logfields.Cmd, fullCommand)
@@ -470,28 +477,30 @@ func newManager(p params) Manager {
 	// init haveIp6tables argument before using it in a reconciliation loop
 	iptMgr.startDone = iptMgr.argsInit.Add()
 
-	p.JobGroup.Add(
-		job.OneShot("iptables-reconciliation-loop", func(ctx context.Context, health cell.Health) error {
-			// each job runs in an independent goroutine, so we need to explicitly wait for both
-			// ip{4,6}tables and haveIp6tables initialization before starting the reconciler.
-			iptMgr.argsInit.Stop()
-			select {
-			case <-ctx.Done():
-				return nil
-			case <-iptMgr.argsInit.WaitChannel():
-			}
-			return reconciliationLoop(
-				ctx, p.Logger, health,
-				iptMgr.sharedCfg.InstallIptRules, &iptMgr.reconcilerParams,
-				iptMgr.doInstallRules,
-				iptMgr.doInstallProxyRules,
-				iptMgr.installNoTrackRules,
-				iptMgr.removeNoTrackRules,
-				iptMgr.setNoTrackHostPorts,
-				iptMgr.removeNoTrackHostPorts,
-			)
-		}),
-	)
+	if iptablesSupported {
+		p.JobGroup.Add(
+			job.OneShot("iptables-reconciliation-loop", func(ctx context.Context, health cell.Health) error {
+				// each job runs in an independent goroutine, so we need to explicitly wait for both
+				// ip{4,6}tables and haveIp6tables initialization before starting the reconciler.
+				iptMgr.argsInit.Stop()
+				select {
+				case <-ctx.Done():
+					return nil
+				case <-iptMgr.argsInit.WaitChannel():
+				}
+				return reconciliationLoop(
+					ctx, p.Logger, health,
+					iptMgr.sharedCfg.InstallIptRules, &iptMgr.reconcilerParams,
+					iptMgr.doInstallRules,
+					iptMgr.doInstallProxyRules,
+					iptMgr.installNoTrackRules,
+					iptMgr.removeNoTrackRules,
+					iptMgr.setNoTrackHostPorts,
+					iptMgr.removeNoTrackHostPorts,
+				)
+			}),
+		)
+	}
 
 	// Add the manager after the reconciler, otherwise there is a deadlock on shutdown
 	// between closing and draining the channels.
@@ -503,6 +512,12 @@ func newManager(p params) Manager {
 // Start initializes the iptables manager and checks for iptables kernel modules availability.
 func (m *manager) Start(ctx cell.HookContext) error {
 	defer m.startDone()
+
+	// On platforms without iptables/netfilter (e.g. Windows) there is nothing
+	// to probe or program.
+	if !iptablesSupported {
+		return nil
+	}
 
 	if os.Getenv("CILIUM_PREPEND_IPTABLES_CHAIN") != "" {
 		m.logger.Warn("CILIUM_PREPEND_IPTABLES_CHAIN env var has been deprecated. Please use 'CILIUM_PREPEND_IPTABLES_CHAINS' " +
@@ -1519,9 +1534,9 @@ func (m *manager) installMasqueradeRules(
 		if len(m.sharedCfg.MasqueradeInterfaces) > 0 {
 			devices = m.sharedCfg.MasqueradeInterfaces
 		}
-		family := netlink.FAMILY_V4
+		family := nlFamilyV4
 		if prog == m.ip6tables {
-			family = netlink.FAMILY_V6
+			family = nlFamilyV6
 		}
 		if routes, err := safenetlink.RouteList(nil, family); err == nil {
 			if err := m.installMasqueradeRouteSourceRules(prog, routes, netlink.LinkByIndex, devices, snatDstExclusionCIDR, allocRange); err != nil {

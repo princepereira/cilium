@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Authors of Cilium
 
+//go:build linux
+
 package sockets
 
 import (
@@ -11,6 +13,7 @@ import (
 	"net"
 	"net/netip"
 	"sync"
+	"syscall"
 
 	"github.com/cilium/cilium/pkg/datapath/linux/probes"
 	"github.com/cilium/cilium/pkg/logging/logfields"
@@ -150,7 +153,7 @@ func probeForSockDestroy(ctx context.Context, logger *slog.Logger, tcp, udp bool
 		defer udpSock.Close()
 
 		protoProbes = append(protoProbes, inetProbe{
-			proto:      unix.IPPROTO_UDP,
+			proto:      syscall.IPPROTO_UDP,
 			filterMask: StateFilterUDP,
 			port:       port,
 		})
@@ -164,7 +167,7 @@ func probeForSockDestroy(ctx context.Context, logger *slog.Logger, tcp, udp bool
 		defer tcpSock.Close()
 
 		protoProbes = append(protoProbes, inetProbe{
-			proto:      unix.IPPROTO_TCP,
+			proto:      syscall.IPPROTO_TCP,
 			filterMask: StateFilterTCP,
 			port:       port,
 		})
@@ -176,7 +179,7 @@ func probeForSockDestroy(ctx context.Context, logger *slog.Logger, tcp, udp bool
 			inetProbe: probeConfig,
 			logger:    logger,
 		}
-		if err := Iterate(uint8(probe.proto), unix.AF_INET, probe.filterMask, probe.handleSocket); err != nil {
+		if err := Iterate(uint8(probe.proto), syscall.AF_INET, probe.filterMask, probe.handleSocket); err != nil {
 			errs = errors.Join(errs, fmt.Errorf("failed while iterating sockets: %w", err))
 			continue
 		}
@@ -190,7 +193,7 @@ func probeForSockDestroy(ctx context.Context, logger *slog.Logger, tcp, udp bool
 			} else {
 				proto := "tcp"
 				requiredConfig := "CONFIG_INET_TCP_DIAG"
-				if probe.proto == unix.IPPROTO_UDP {
+				if probe.proto == syscall.IPPROTO_UDP {
 					proto = "udp"
 					requiredConfig = "CONFIG_INET_UDP_DIAG"
 				}

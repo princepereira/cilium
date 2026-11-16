@@ -6,10 +6,8 @@ package signalmap
 import (
 	"fmt"
 	"log/slog"
-	"os"
 
 	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/perf"
 
 	"github.com/cilium/cilium/pkg/bpf"
 )
@@ -59,26 +57,11 @@ func initMap(logger *slog.Logger, maxEntries int) *signalMap {
 	}
 }
 
-func (sm *signalMap) open() error {
-	if err := sm.oldBpfMap.Create(); err != nil {
-		return err
-	}
-	path := bpf.MapPath(sm.logger, MapName)
-
-	var err error
-	sm.ebpfMap, err = ebpf.LoadPinnedMap(path, nil)
-	return err
-}
-
 func (sm *signalMap) close() error {
 	if sm.ebpfMap != nil {
 		return sm.ebpfMap.Close()
 	}
 	return nil
-}
-
-func (sm *signalMap) NewReader() (PerfReader, error) {
-	return perf.NewReader(sm.ebpfMap, os.Getpagesize())
 }
 
 func (sm *signalMap) MapName() string {

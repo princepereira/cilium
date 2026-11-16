@@ -6,7 +6,6 @@ package xdp
 import (
 	"fmt"
 
-	"github.com/cilium/ebpf/link"
 	"github.com/cilium/hive/cell"
 )
 
@@ -142,12 +141,16 @@ func (cfg Config) Mode() Mode {
 func (cfg Config) Disabled() bool { return cfg.mode == AccelerationModeDisabled }
 
 // GetAttachFlags returns the XDP attach flags for the configured TCMode.
-func (cfg Config) GetAttachFlags() link.XDPAttachFlags {
+//
+// The AttachFlags type and the driver/generic flag values are defined
+// per-platform (see xdp_linux.go / xdp_other.go) because the flag type comes
+// from github.com/cilium/ebpf/link, which is Linux-only.
+func (cfg Config) GetAttachFlags() AttachFlags {
 	switch cfg.mode {
 	case AccelerationModeNative, AccelerationModeBestEffort:
-		return link.XDPDriverMode
+		return attachFlagDriverMode
 	case AccelerationModeGeneric:
-		return link.XDPGenericMode
+		return attachFlagGenericMode
 	}
 
 	return 0

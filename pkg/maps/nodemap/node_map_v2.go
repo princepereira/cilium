@@ -11,9 +11,8 @@ import (
 	"os"
 	"unsafe"
 
-	"golang.org/x/sys/unix"
-
 	"github.com/cilium/cilium/pkg/bpf"
+	"github.com/cilium/cilium/pkg/bpf/mapflags"
 	"github.com/cilium/cilium/pkg/ebpf"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/types"
@@ -63,7 +62,7 @@ func newMapV2(logger *slog.Logger, mapName string, conf Config) *nodeMapV2 {
 			KeySize:    uint32(unsafe.Sizeof(NodeKey{})),
 			ValueSize:  uint32(unsafe.Sizeof(NodeValueV2{})),
 			MaxEntries: conf.NodeMapMax,
-			Flags:      unix.BPF_F_NO_PREALLOC | unix.BPF_F_RDONLY_PROG,
+			Flags:      mapflags.BPF_F_NO_PREALLOC | mapflags.BPF_F_RDONLY_PROG,
 			Pinning:    ebpf.PinByName,
 		}),
 	}

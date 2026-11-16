@@ -6,12 +6,12 @@ package policymap
 import (
 	"log/slog"
 	"os"
+	"syscall"
 	"testing"
 
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/cilium/hive/hivetest"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sys/unix"
 
 	"github.com/cilium/cilium/pkg/bpf"
 	"github.com/cilium/cilium/pkg/policy/trafficdirection"
@@ -94,9 +94,9 @@ func TestPrivilegedDeleteNonexistentKey(t *testing.T) {
 	key := newKey(trafficdirection.Ingress, 27, u8proto.TCP, 80, SinglePortPrefixLen)
 	err := testMap.DeleteKey(key)
 	require.Error(t, err)
-	var errno unix.Errno
+	var errno syscall.Errno
 	require.ErrorAs(t, err, &errno)
-	require.Equal(t, unix.ENOENT, errno)
+	require.Equal(t, syscall.ENOENT, errno)
 }
 
 func TestPrivilegedDenyPolicyMapDumpToSlice(t *testing.T) {

@@ -10,12 +10,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"syscall"
 
 	"github.com/google/gops/agent"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"golang.org/x/sys/unix"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
@@ -278,7 +278,7 @@ func runServe(vp *viper.Viper) error {
 	}
 	go func() {
 		sigs := make(chan os.Signal, 1)
-		signal.Notify(sigs, unix.SIGINT, unix.SIGTERM)
+		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 		<-sigs
 		srv.Stop()
 		if tlsServerConfig != nil {

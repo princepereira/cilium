@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"syscall"
 
 	"github.com/vishvananda/netlink"
-	"golang.org/x/sys/unix"
 	resourceapi "k8s.io/api/resource/v1"
 	"k8s.io/utils/ptr"
 
@@ -124,7 +124,7 @@ func (d DummyDevice) Setup(cfg types.DeviceConfig) error {
 	if err == nil {
 		return nil
 	}
-	if !errors.Is(err, unix.EEXIST) {
+	if !errors.Is(err, syscall.EEXIST) {
 		return fmt.Errorf("failed to create dummy interface %s: %w", d.Name, err)
 	}
 

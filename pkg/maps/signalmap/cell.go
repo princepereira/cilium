@@ -8,7 +8,6 @@ import (
 	"log/slog"
 
 	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/perf"
 	"github.com/cilium/hive/cell"
 
 	"github.com/cilium/cilium/pkg/bpf"
@@ -25,7 +24,7 @@ var Cell = cell.Module(
 // PerfReader is an interface for reading from perf records. Implementations need to be safe to call
 // from multiple goroutines.
 type PerfReader interface {
-	Read() (perf.Record, error)
+	Read() (Record, error)
 	Pause() error
 	Resume() error
 	Close() error

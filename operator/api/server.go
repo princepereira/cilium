@@ -9,12 +9,10 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"syscall"
 
 	"github.com/cilium/hive/cell"
 	"github.com/go-openapi/loads"
 	"github.com/go-openapi/runtime"
-	"golang.org/x/sys/unix"
 
 	operatorApi "github.com/cilium/cilium/api/v1/operator/server"
 	"github.com/cilium/cilium/api/v1/operator/server/restapi"
@@ -193,26 +191,4 @@ func (s *server) Ports() []int {
 		ports = append(ports, srv.listener.Addr().(*net.TCPAddr).Port)
 	}
 	return ports
-}
-
-// setsockoptReuseAddrAndPort sets SO_REUSEADDR and SO_REUSEPORT
-func setsockoptReuseAddrAndPort(network, address string, c syscall.RawConn) error {
-	var soerr error
-	if err := c.Control(func(su uintptr) {
-		s := int(su)
-		// Allow reuse of recently-used addresses. This socket option is
-		// set by default on listeners in Go's net package, see
-		// net setDefaultListenerSockopts
-		if err := unix.SetsockoptInt(s, unix.SOL_SOCKET, unix.SO_REUSEADDR, 1); err != nil {
-			soerr = fmt.Errorf("failed to setsockopt(SO_REUSEADDR): %w", err)
-			return
-		}
-
-		// Allow reuse of recently-used ports. This gives the operator a
-		// better chance to re-bind upon restarts.
-		soerr = unix.SetsockoptInt(s, unix.SOL_SOCKET, unix.SO_REUSEPORT, 1)
-	}); err != nil {
-		return err
-	}
-	return soerr
 }

@@ -18,7 +18,6 @@ import (
 
 	"github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"golang.org/x/sys/unix"
 
 	"github.com/cilium/cilium/test/config"
 	ginkgoext "github.com/cilium/cilium/test/ginkgo-ext"
@@ -178,14 +177,14 @@ func GetAppPods(apps []string, namespace string, kubectl *Kubectl, appFmt string
 // directly from test code to assist troubleshooting and test development.
 func HoldEnvironment(description ...string) {
 	test := ginkgo.CurrentGinkgoTestDescription()
-	pid := unix.Getpid()
+	pid := os.Getpid()
 
 	fmt.Fprintf(os.Stdout, "\n---\n%s", test.FullTestText)
 	fmt.Fprintf(os.Stdout, "\nat %s:%d", test.FileName, test.LineNumber)
 	fmt.Fprintf(os.Stdout, "\n\n%s", description)
 	fmt.Fprintf(os.Stdout, "\n\nPausing test for debug.")
 	fmt.Fprintf(os.Stdout, "\nRun \"kill -SIGCONT %d\" to continue.\n", pid)
-	unix.Kill(pid, unix.SIGSTOP)
+	pauseProcess(pid)
 	time.Sleep(time.Millisecond)
 	fmt.Fprintf(os.Stdout, "Test resumed.\n")
 }

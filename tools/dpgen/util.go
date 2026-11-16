@@ -19,10 +19,10 @@ import (
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/btf"
-	"golang.org/x/sys/unix"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
+	"github.com/cilium/cilium/pkg/bpf/mapflags"
 	"github.com/cilium/cilium/pkg/container/set"
 )
 
@@ -295,13 +295,13 @@ func marshalSorted(bb *btf.Builder) ([]byte, error) {
 }
 
 // bpfFlagsToString converts BPF map flags into a string representation
-// using unix.BPF_F_* constant names where possible.
+// using mapflags.BPF_F_* constant names where possible.
 func bpfFlagsToString(flags uint32) string {
 	// The only map flags used by Cilium at time of writing.
 	flagNames := map[uint32]string{
-		unix.BPF_F_NO_PREALLOC:   "unix.BPF_F_NO_PREALLOC",
-		unix.BPF_F_NO_COMMON_LRU: "unix.BPF_F_NO_COMMON_LRU",
-		unix.BPF_F_RDONLY_PROG:   "unix.BPF_F_RDONLY_PROG",
+		mapflags.BPF_F_NO_PREALLOC:   "mapflags.BPF_F_NO_PREALLOC",
+		mapflags.BPF_F_NO_COMMON_LRU: "mapflags.BPF_F_NO_COMMON_LRU",
+		mapflags.BPF_F_RDONLY_PROG:   "mapflags.BPF_F_RDONLY_PROG",
 	}
 
 	var consts []string

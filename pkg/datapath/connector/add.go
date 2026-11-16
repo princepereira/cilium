@@ -9,7 +9,6 @@ import (
 	"slices"
 
 	"github.com/vishvananda/netlink"
-	"golang.org/x/sys/unix"
 
 	"github.com/cilium/cilium/pkg/datapath/linux/sysctl"
 )
@@ -23,6 +22,8 @@ const (
 	// end of every veth/netkit pair created by Cilium. Used to identify
 	// Cilium-owned interfaces.
 	ciliumCNIAltName = "cilium_cni"
+	// ifNameSize is the maximum size of a network interface name (Linux IFNAMSIZ).
+	ifNameSize = 16
 )
 
 // IsCiliumManagedLink returns true if the link was created by Cilium, identified
@@ -40,7 +41,7 @@ func CniAltName(ifName string) string {
 func Endpoint2IfName(endpointID string) string {
 	sum := fmt.Sprintf("%x", sha256.Sum256([]byte(endpointID)))
 	// returned string length should be < unix.IFNAMSIZ
-	truncateLength := uint(unix.IFNAMSIZ - len(temporaryInterfacePrefix) - 1)
+	truncateLength := uint(ifNameSize - len(temporaryInterfacePrefix) - 1)
 	return HostInterfacePrefix + truncateString(sum, truncateLength)
 }
 

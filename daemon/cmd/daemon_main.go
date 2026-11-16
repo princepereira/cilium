@@ -976,13 +976,7 @@ func initEnv(logger *slog.Logger, vp *viper.Viper) {
 			logfields.Path, option.Config.StateDir,
 		)
 	}
-	if _, err := os.Stat(option.Config.BpfDir); os.IsNotExist(err) {
-		logging.Fatal(scopedLog, "BPF template directory: NOT OK. Please run 'make install-bpf'", logfields.Error, err)
-	}
-
-	if err := probes.CreateHeaderFiles(filepath.Join(option.Config.BpfDir, "include/bpf"), probes.ExecuteHeaderProbes(scopedLog)); err != nil {
-		logging.Fatal(scopedLog, "failed to create header files with feature macros", logfields.Error, err)
-	}
+	verifyBPFTemplateDir(scopedLog)
 
 	if err := pidfile.Write(defaults.PidFilePath); err != nil {
 		logging.Fatal(scopedLog, "Failed to create Pidfile",
