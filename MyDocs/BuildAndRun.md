@@ -23,9 +23,8 @@ kubectl get crd | Select-String "cilium"
 
 
 ## Set Pod CIDR ##
+.\cilium-agent.exe --k8s-kubeconfig-path C:\k\config --state-dir C:\cilium\state --socket-path C:\cilium\state\cilium.sock --k8s-namespace kube-system --enable-ipv6=false --enable-l7-proxy=false
 
 '{"spec":{"ipam":{"podCIDRs":["10.244.0.0/16"]}}}' | Set-Content -NoNewline patch.json
 kubectl patch ciliumnode aksnpcil000001 --type merge --patch-file patch.json
-
-.\cilium-agent.exe --k8s-kubeconfig-path C:\k\config --state-dir C:\cilium\state --socket-path C:\cilium\state\cilium.sock --k8s-namespace kube-system --enable-ipv6=false --enable-l7-proxy=false
 ```
